@@ -20,7 +20,6 @@ public class CubeRenderer {
     private Vector3f scale;
     private Vector3f color;
 
-    //Constructor
     public CubeRenderer(ShaderManager shaderManager) {
         this.shaderManager = shaderManager;
         this.modelMatrix = new Matrix4f();
@@ -32,7 +31,6 @@ public class CubeRenderer {
         setupUniforms();
     }
 
-    //Sets up the cube buffers
     private void setupCubeBuffers() {
         float[] vertices = {
                 -0.5f, -0.5f,  0.5f,  1.0f, 0.0f, 0.0f,
@@ -74,7 +72,6 @@ public class CubeRenderer {
         glBindVertexArray(0);
     }
 
-    //Sets up the uniforms
     private void setupUniforms() {
         try {
             ShaderProgram shader = shaderManager.getShader("3d");
@@ -89,7 +86,6 @@ public class CubeRenderer {
     }
 
 
-    //Extra Helper methods, as a "just in case."
     public void setPosition(float x, float y, float z) {
         this.position.set(x, y, z);
     }

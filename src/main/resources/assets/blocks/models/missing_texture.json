@@ -1,0 +1,6 @@
+{
+  "global": "missing_texture",
+  "textures": {
+    "all": "missing_texture.png"
+  }
+}

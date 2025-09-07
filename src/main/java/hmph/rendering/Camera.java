@@ -2,41 +2,23 @@ package hmph.rendering;
 import hmph.math.Matrix4f;
 import hmph.math.Vector3f;
 public class Camera {
-
     private Vector3f position;
-
     private Vector3f target;
-
     private Vector3f up;
-
     private Vector3f front;
-
     private Vector3f right;
-
     private Vector3f worldUp;
-
     private float yaw;
-
     private float pitch;
-
     private float movementSpeed;
-
     private float mouseSensitivity;
-
     private float zoom;
-
     private Matrix4f viewMatrix;
-
     private Matrix4f projectionMatrix;
-
     private static final float DEFAULT_YAW = -90.0f;
-
     private static final float DEFAULT_PITCH = 0.0f;
-
     private static final float DEFAULT_SPEED = 2.5f;
-
     private static final float DEFAULT_SENSITIVITY = 0.1f;
-
     private static final float DEFAULT_ZOOM = 45.0f;
 
     public Camera() {
@@ -75,8 +57,6 @@ public class Camera {
         return projectionMatrix;
     }
 
-    //Positions
-
     public void moveForward(float deltaTime) {
         Vector3f velocity = new Vector3f(front).mul(movementSpeed * deltaTime);
         position.add(velocity);
@@ -107,7 +87,6 @@ public class Camera {
         position.add(velocity.mul(-1));
     }
 
-    //Mouse
     public void processMouseMovement(float xOffset, float yOffset, boolean constrainPitch) {
         xOffset *= mouseSensitivity;
         yOffset *= mouseSensitivity;
@@ -147,7 +126,6 @@ public class Camera {
         this.zoom = zoom;
     }
 
-    //Like a quaterion rotation.
     public void lookAt(Vector3f target) {
         Vector3f direction = new Vector3f(target).add(position.x * -1, position.y * -1, position.z * -1).normalize();
         this.yaw = (float) Math.toDegrees(Math.atan2(direction.z, direction.x));
@@ -156,21 +134,13 @@ public class Camera {
     }
 
     public Vector3f getPosition() { return new Vector3f(position); }
-
     public Vector3f getFront() { return new Vector3f(front); }
-
     public Vector3f getUp() { return new Vector3f(up); }
-
     public Vector3f getRight() { return new Vector3f(right); }
-
     public float getZoom() { return zoom; }
-
     public float getYaw() { return yaw; }
-
     public float getPitch() { return pitch; }
-
     public float getMovementSpeed() { return movementSpeed; }
-
     public float getMouseSensitivity() { return mouseSensitivity; }
 
     private void updateCameraVectors() {
@@ -192,7 +162,6 @@ public class Camera {
     }
 
 
-    //Love @Override, it's very nice.
     @Override
     public String toString() {
         return String.format("Camera[pos=%s, yaw=%.1f, pitch=%.1f, zoom=%.1f]", position, yaw, pitch, zoom);

@@ -15,6 +15,24 @@ public class ShaderManager {
         shader.createVertexShader(vertexSource);
         shader.createFragmentShader(fragmentSource);
         shader.link();
+        shader.bind();
+        if (name.equals("3d")) {
+            shader.createUniform("model");
+            shader.createUniform("view");
+            shader.createUniform("projection");
+            shader.createUniform("texture1");
+            shader.createUniform("color");
+        } else if (name.equals("textured")) {
+            shader.createUniform("model");
+            shader.createUniform("projection");
+            shader.createUniform("color");
+            shader.createUniform("texture1");
+        } else if (name.equals("text")) {
+            shader.createUniform("projection");
+            shader.createUniform("textColor");
+            shader.createUniform("textTexture");
+        }
+        shader.unbind();
         shaders.put(name, shader);
     }
 
@@ -29,17 +47,12 @@ public class ShaderManager {
         shaders.clear();
     }
 
-    //Loads all the shaders that are neeeded.
-
     public void loadDefaultShaders() throws Exception {
         loadShader("basic", BASIC_VERTEX_SHADER, BASIC_FRAGMENT_SHADER);
         loadShader("3d", VERTEX_3D_SHADER, FRAGMENT_3D_SHADER);
         loadShader("textured", TEXTURED_VERTEX_SHADER, TEXTURED_FRAGMENT_SHADER);
         loadShader("text", TEXT_VERTEX_SHADER, TEXT_FRAGMENT_SHADER);
     }
-
-    //General Shaders, might come in handy later on.
-
     private static final String BASIC_VERTEX_SHADER = """
         #version 330 core
         layout (location = 0) in vec3 aPos;
@@ -52,7 +65,6 @@ public class ShaderManager {
             vertexColor = aColor;
         }
         """;
-
     private static final String BASIC_FRAGMENT_SHADER = """
         #version 330 core
         in vec3 vertexColor;
@@ -62,35 +74,43 @@ public class ShaderManager {
             FragColor = vec4(vertexColor, 1.0);
         }
         """;
-
     private static final String VERTEX_3D_SHADER = """
         #version 330 core
         layout (location = 0) in vec3 aPos;
-        layout (location = 1) in vec3 aColor;
-        
+        layout (location = 1) in vec2 aTexCoord;
+    
         uniform mat4 model;
         uniform mat4 view;
         uniform mat4 projection;
-        
-        out vec3 vertexColor;
-        
+    
+        out vec2 TexCoord;
+        out vec3 worldPos;
+    
         void main() {
-            gl_Position = projection * view * model * vec4(aPos, 1.0);
-            vertexColor = aColor;
+            worldPos = vec3(model * vec4(aPos, 1.0));
+            gl_Position = projection * view * vec4(worldPos, 1.0);
+            TexCoord = aTexCoord;
         }
-        """;
+    """;
 
     private static final String FRAGMENT_3D_SHADER = """
         #version 330 core
-        in vec3 vertexColor;
+        in vec2 TexCoord;
+        in vec3 worldPos;
         out vec4 FragColor;
-        
+    
+        uniform sampler2D texture1;
+        uniform vec3 color;
+    
         void main() {
-            FragColor = vec4(vertexColor, 1.0);
+            vec4 texColor = texture(texture1, TexCoord);
+            if (texColor.a < 0.1) {
+                discard; //Transparency!
+            }
+        FragColor = texColor * vec4(color, 1.0);
         }
-        """;
+    """;
 
-    //Decided to change this for 2D rendering purposes
     private static final String TEXTURED_VERTEX_SHADER = """
         #version 330 core
         layout (location = 0) in vec2 aPos;
@@ -138,9 +158,10 @@ public class ShaderManager {
         in vec2 TexCoords;
         out vec4 FragColor;
         uniform sampler2D textTexture;
+        uniform vec3 textColor;
         void main() {
             float alpha = texture(textTexture, TexCoords).r;
-            FragColor = vec4(1.0, 1.0, 1.0, alpha);
+            FragColor = vec4(textColor, alpha);
         }
     """;
 }

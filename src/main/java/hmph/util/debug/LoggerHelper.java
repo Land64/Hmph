@@ -3,11 +3,9 @@ package hmph.util.debug;
 public class LoggerHelper {
     public static boolean isThatDebugMode = true;
 
-    //Friggin Debugging YO. i only did this for color btw.
     public static void betterPrint(String msg, LogType type) {
         String prefix = "";
         String color = "";
-
         switch (type) {
             case INFO:
                 prefix = "[INFO] ";
@@ -32,12 +30,10 @@ public class LoggerHelper {
                 color = "\u001B[35m"; // magenta
                 break;
         }
-
         String reset = "\u001B[0m";
         System.out.println(color + prefix + msg + reset);
     }
 
-    //Friggin Log types YO
     public enum LogType {
         INFO,
         WARNING,

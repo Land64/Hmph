@@ -1,0 +1,6 @@
+{
+  "global": "grass_block",
+  "textures": {
+    "all": "grass_block.png"
+  }
+}
