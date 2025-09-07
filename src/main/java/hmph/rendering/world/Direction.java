@@ -24,47 +24,47 @@ public enum Direction {
 
     public Vector3f[] getVertices() {
         switch (this) {
-            case NORTH:
-                return new Vector3f[]{
-                        new Vector3f(1, 0, 0),
-                        new Vector3f(0, 0, 0),
-                        new Vector3f(0, 1, 0),
-                        new Vector3f(1, 1, 0)
-                };
-            case SOUTH:
-                return new Vector3f[]{
-                        new Vector3f(0, 0, 1),
-                        new Vector3f(1, 0, 1),
-                        new Vector3f(1, 1, 1),
-                        new Vector3f(0, 1, 1)
-                };
-            case EAST:
-                return new Vector3f[]{
-                        new Vector3f(1, 0, 0),
-                        new Vector3f(1, 0, 1),
-                        new Vector3f(1, 1, 1),
-                        new Vector3f(1, 1, 0)
-                };
-            case WEST:
+            case NORTH: 
                 return new Vector3f[]{
                         new Vector3f(0, 0, 0),
-                        new Vector3f(0, 0, 1),
-                        new Vector3f(0, 1, 1),
+                        new Vector3f(1, 0, 0),
+                        new Vector3f(1, 1, 0),
                         new Vector3f(0, 1, 0)
                 };
-            case UP:
+            case SOUTH: 
                 return new Vector3f[]{
-                        new Vector3f(1, 1, 0),
-                        new Vector3f(0, 1, 0),
+                        new Vector3f(1, 0, 1),
+                        new Vector3f(0, 0, 1),
                         new Vector3f(0, 1, 1),
                         new Vector3f(1, 1, 1)
                 };
-            case DOWN:
+            case EAST: 
                 return new Vector3f[]{
+                        new Vector3f(1, 0, 0),
                         new Vector3f(1, 0, 1),
+                        new Vector3f(1, 1, 1),
+                        new Vector3f(1, 1, 0)
+                };
+            case WEST: 
+                return new Vector3f[]{
                         new Vector3f(0, 0, 1),
                         new Vector3f(0, 0, 0),
-                        new Vector3f(1, 0, 0)
+                        new Vector3f(0, 1, 0),
+                        new Vector3f(0, 1, 1)
+                };
+            case UP: 
+                return new Vector3f[]{
+                        new Vector3f(0, 1, 0),
+                        new Vector3f(1, 1, 0),
+                        new Vector3f(1, 1, 1),
+                        new Vector3f(0, 1, 1)
+                };
+            case DOWN: 
+                return new Vector3f[]{
+                        new Vector3f(0, 0, 1),
+                        new Vector3f(1, 0, 1),
+                        new Vector3f(1, 0, 0),
+                        new Vector3f(0, 0, 0)
                 };
             default:
                 return new Vector3f[0];

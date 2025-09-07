@@ -1,5 +1,6 @@
 package hmph.util;
 
+import hmph.util.debug.LoggerHelper;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
@@ -41,7 +42,7 @@ public class TextureManager {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glBindTexture(GL_TEXTURE_2D, 0);
 
-        System.out.println("Created default texture: " + defaultTexture);
+        LoggerHelper.betterPrint("Created default texture: " + defaultTexture, LoggerHelper.LogType.RENDERING);
     }
 
 
@@ -89,7 +90,7 @@ public class TextureManager {
             glBindTexture(GL_TEXTURE_2D, 0);
 
             textures.put(name, textureId);
-            System.out.println("Loaded texture: " + name + " (" + width.get(0) + "x" + height.get(0) + ") -> ID " + textureId);
+            LoggerHelper.betterPrint("Loaded texture: " + name + " (" + width.get(0) + "x" + height.get(0) + ") -> ID " + textureId, LoggerHelper.LogType.RENDERING);
             return textureId;
 
         } catch (Exception e) {

@@ -5,11 +5,13 @@ import hmph.math.Vector3f;
 import hmph.rendering.shaders.ShaderProgram;
 import hmph.rendering.shapes.CubeRenderer;
 import hmph.rendering.world.ChunkBase;
+import hmph.rendering.world.ChunkManager;
 import hmph.rendering.world.Direction;
 import hmph.util.TextureManager;
 import hmph.util.debug.LoggerHelper;
 import hmph.rendering.shaders.ShaderManager;
 import java.nio.*;
+import java.util.HashMap;
 import java.util.Map;
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
@@ -47,7 +49,10 @@ public class RenderWIndow {
     private TextRenderer textRenderer;
     private ImageRenderer imageRenderer;
     private boolean mouseCaptured = true;
-    private TextureManager textureManager; 
+    private TextureManager textureManager;
+    private Map<Integer, KeyAction> keyActions = new HashMap<>();
+    private ChunkManager chunkManager;
+    private int renderDistance = 5;
 
     public RenderWIndow(String title, int width, int height, boolean vSync) {
         this.title = title;
@@ -68,6 +73,8 @@ public class RenderWIndow {
         createWindow();
         initOpenGL();
         loadRenderers();
+        populateInputs();
+
         BlockRegistry registry = new BlockRegistry();
         registry.loadBlocks("assets/blocks/models");
         initCameraAndChunk(registry);
@@ -105,6 +112,26 @@ public class RenderWIndow {
         glfwShowWindow(windowBoi);
     }
 
+    private void loadInputs(float deltaTime) {
+        for (Map.Entry<Integer, KeyAction> entry : keyActions.entrySet()) {
+            int key = entry.getKey();
+            KeyAction action = entry.getValue();
+            if (keys[key]) action.run(deltaTime);
+        }
+        camera.setMovementSpeed(keys[GLFW_KEY_LEFT_CONTROL] ? 10.0f : 5.0f);
+    }
+
+    private void populateInputs() {
+        keyActions.put(GLFW_KEY_W, (dt) -> camera.moveForward(dt));
+        keyActions.put(GLFW_KEY_S, (dt) -> camera.moveBackward(dt));
+        keyActions.put(GLFW_KEY_A, (dt) -> camera.moveLeft(dt));
+        keyActions.put(GLFW_KEY_D, (dt) -> camera.moveRight(dt));
+        keyActions.put(GLFW_KEY_SPACE, (dt) -> camera.moveUp(dt));
+        keyActions.put(GLFW_KEY_LEFT_SHIFT, (dt) -> camera.moveDown(dt));
+        //keyActions.put(GLFW_KEY_ESCAPE, (dt) -> glfwSetWindowShouldClose(windowBoi, true));
+        keyActions.put(GLFW_KEY_LEFT_CONTROL, (dt) -> camera.setMovementSpeed(5.0f));
+    }
+
     private void loadRenderers() {
         try {
             shaderManager = new ShaderManager();
@@ -117,11 +144,11 @@ public class RenderWIndow {
             imageRenderer = new ImageRenderer("assets/images/gui/button.png", texturedShader, (float)width, (float)height);
             cubeRenderer = new CubeRenderer(shaderManager);
 
-            
             textureManager = new TextureManager();
             textureManager.loadTexture("dirt", "assets/blocks/dirt_block.png");
             textureManager.loadTexture("grass", "assets/blocks/grass_block.png");
             textureManager.loadTexture("missing", "assets/blocks/missing_texture.png");
+            textureManager.loadTexture("stone", "assets/blocks/stone_block.png");
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -131,9 +158,10 @@ public class RenderWIndow {
 
     private void initCameraAndChunk(BlockRegistry registry) {
         camera = new Camera();
-        camera.setPosition(8, 30, 8);
+        camera.setPosition(0, 30, 0);
         camera.lookAt(new Vector3f(8, 0, 8));
-        System.out.println("Checking block registry:");
+
+        LoggerHelper.betterPrint("Checking block registry:", LoggerHelper.LogType.RENDERING);
         String testBlock = registry.getNameFromID(1);
         if (testBlock == null) {
             System.err.println("WARNING: No block found with ID 1. Registry might be empty!");
@@ -144,19 +172,15 @@ public class RenderWIndow {
             }
             registry.registerBlock("stone", "solid", defaultTextures);
             testBlock = registry.getNameFromID(1);
-            System.out.println("Registered default block: " + testBlock);
+            LoggerHelper.betterPrint("Registered default block: " + testBlock, LoggerHelper.LogType.RENDERING);
         } else {
-            System.out.println("Found block with ID 1: " + testBlock);
+            LoggerHelper.betterPrint("Found block with ID 1: " + testBlock, LoggerHelper.LogType.RENDERING);
         }
-        int chunkX = (int)Math.floor(camera.getPosition().x / ChunkBase.SIZE_X);
-        int chunkZ = (int)Math.floor(camera.getPosition().z / ChunkBase.SIZE_Z);
-        System.out.println("Creating chunk at chunk coordinates: (" + chunkX + ", " + chunkZ + ")");
-        chunk = new ChunkBase(chunkX, chunkZ, registry);
-        if (chunk.getVao() == 0) {
-            System.err.println("ERROR: Chunk VAO is 0 after creation!");
-        } else {
-            System.out.println("Chunk created successfully with VAO: " + chunk.getVao() + " and " + chunk.getIndexCount() + " indices");
-        }
+        chunkManager = new ChunkManager(registry, renderDistance);
+        chunkManager.updateChunks(new Vector3f(-999, 0, -999));
+        chunkManager.updateChunks(camera.getPosition());
+
+        LoggerHelper.betterPrint("ChunkManager initialized with render distance: " + renderDistance, LoggerHelper.LogType.RENDERING);
     }
 
     private void centerWindow() {
@@ -201,7 +225,7 @@ public class RenderWIndow {
             double currentTime = glfwGetTime();
             float deltaTime = (float)(currentTime - lastTime);
             lastTime = currentTime;
-            processInput(deltaTime);
+            loadInputs(deltaTime);
             renderScene();
             checkGLError("after render");
             glfwSwapBuffers(windowBoi);
@@ -252,33 +276,39 @@ public class RenderWIndow {
     private void renderChunk() {
         ShaderProgram chunkShader = shaderManager.getShader("3d");
         if (chunkShader == null) return;
-        if (chunk == null) return;
-        if (!chunk.isMeshBuilt()) return;
-        int vao = chunk.getVao();
-        if (vao == 0) return;
-        int indexCount = chunk.getIndexCount();
-        if (indexCount <= 0) return;
+        chunkManager.updateChunks(camera.getPosition());
+        Map<Long, ChunkBase> chunks = chunkManager.getLoadedChunks();
+
+        if (chunks.isEmpty()) return;
         int currentProgram = glGetInteger(GL_CURRENT_PROGRAM);
         boolean depthTest = glIsEnabled(GL_DEPTH_TEST);
         boolean cullFace = glIsEnabled(GL_CULL_FACE);
         try {
             glEnable(GL_DEPTH_TEST);
             glEnable(GL_CULL_FACE);
-            glCullFace(GL_BACK);
+            glCullFace(GL_FRONT);
             chunkShader.bind();
             Matrix4f viewMatrix = camera.getViewMatrix();
             Matrix4f projectionMatrix = camera.getProjectionMatrix((float) width / height, 0.1f, 100.0f);
             chunkShader.setUniform("view", viewMatrix);
             chunkShader.setUniform("projection", projectionMatrix);
-            Matrix4f modelMatrix = new Matrix4f().identity().translate(chunk.getPosition());
-            chunkShader.setUniform("model", modelMatrix);
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, textureManager.getTexture("missing"));
+            glBindTexture(GL_TEXTURE_2D, textureManager.getTexture("stone"));
             chunkShader.setUniform("texture1", 0);
             chunkShader.setUniform("color", new Vector3f(1.0f, 1.0f, 1.0f));
-            glBindVertexArray(vao);
-            glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+            for (ChunkBase chunk : chunks.values()) {
+                if (!chunk.isMeshBuilt()) continue;
+                int vao = chunk.getVao();
+                if (vao == 0) continue;
+                int indexCount = chunk.getIndexCount();
+                if (indexCount <= 0) continue;
+                Matrix4f modelMatrix = new Matrix4f().identity().translate(chunk.getPosition());
+                chunkShader.setUniform("model", modelMatrix);
+                glBindVertexArray(vao);
+                glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+            }
             glBindVertexArray(0);
+
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
@@ -288,6 +318,8 @@ public class RenderWIndow {
             if (currentProgram != 0) glUseProgram(currentProgram);
             else chunkShader.unbind();
         }
+
+
     }
 
     private String getOpenGLErrorString(int error) {
@@ -314,11 +346,20 @@ public class RenderWIndow {
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
             while (glGetError() != GL_NO_ERROR);
-            String info = String.format("Pos: (%.2f, %.2f, %.2f) Look: (%.2f, %.2f, %.2f) Dir: %s",
+            String info = String.format("Pos: (%.2f, %.2f, %.2f) Look: (%.2f, %.2f, %.2f) Dir: %s Chunks: %d",
                     camera.getPosition().x, camera.getPosition().y, camera.getPosition().z,
                     camera.getFront().x, camera.getFront().y, camera.getFront().z,
-                    camera.getFacingDirection());
+                    camera.getFacingDirection(), chunkManager.getLoadedChunkCount());
             textRenderer.renderText(info, 10, 40);
+
+
+            Map<Long, ChunkBase> chunks = chunkManager.getLoadedChunks();
+            if (!chunks.isEmpty()) {
+                ChunkBase firstChunk = chunks.values().iterator().next();
+                String chunkInfo = "Chunks " + chunks.size() + " Chunk at " + firstChunk.getPosition();
+                textRenderer.renderText(chunkInfo, 10, 80);
+            }
+
             float scaledWidth = 128 * 3, scaledHeight = 32 * 3;
             float centerX = (width / 2.0f) - (scaledWidth / 2.0f);
             float centerY = (height / 2.0f) - (scaledHeight / 2.0f);
@@ -356,6 +397,7 @@ public class RenderWIndow {
         }
     }
 
+    /*
     private void processInput(float deltaTime) {
         if (keys[GLFW_KEY_W]) camera.moveForward(deltaTime);
         if (keys[GLFW_KEY_S]) camera.moveBackward(deltaTime);
@@ -365,6 +407,7 @@ public class RenderWIndow {
         if (keys[GLFW_KEY_LEFT_SHIFT]) camera.moveDown(deltaTime);
         camera.setMovementSpeed(keys[GLFW_KEY_LEFT_CONTROL] ? 5.0f : 2.5f);
     }
+     */
 
     private void cleanup() {
         if (cubeRenderer != null) cubeRenderer.cleanup();
@@ -372,6 +415,7 @@ public class RenderWIndow {
         if (keyCB != null) keyCB.free();
         if (windowSizeCB != null) windowSizeCB.free();
         if (mouseButtonCB != null) mouseButtonCB.free();
+        if (chunkManager != null) chunkManager.cleanup();
         if (curosrPosCB != null) curosrPosCB.free();
         if (textRenderer != null) textRenderer.cleanup();
         if (chunk != null) chunk.cleanup();
@@ -382,6 +426,13 @@ public class RenderWIndow {
         if (err != null) err.free();
         LoggerHelper.betterPrint("Cleanup was amazing", LoggerHelper.LogType.INFO);
     }
+
+    @FunctionalInterface
+    interface KeyAction {
+        void run(float dt);
+    }
+
+
 
     public CubeRenderer getCubeRenderer() { return cubeRenderer; }
     public Camera getCamera() { return camera; }
