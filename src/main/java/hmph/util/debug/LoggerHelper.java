@@ -3,6 +3,7 @@ package hmph.util.debug;
 public class LoggerHelper {
     public static boolean isThatDebugMode = true;
 
+    //Friggin Debugging YO. i only did this for color btw.
     public static void betterPrint(String msg, LogType type) {
         String prefix = "";
         String color = "";
@@ -36,6 +37,7 @@ public class LoggerHelper {
         System.out.println(color + prefix + msg + reset);
     }
 
+    //Friggin Log types YO
     public enum LogType {
         INFO,
         WARNING,
