@@ -7,3 +7,5 @@ Hmph, is a minecraft clone made with java, same thing as minecraft.
 - like NO textures are added like AT ALL.
 - so expect big changes to come
 - and CZ dont skid my stuff BUB
+
+  # !!!!!!!!!!!! Goto Master Branch!!!!!!!!!!
