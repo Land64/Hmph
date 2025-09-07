@@ -1,7 +1,8 @@
 package hmph.math;
 
 
-//Same with vector3!
+//Same with vector3! - land you don't suck at math
+
 public class Vector3f {
     public float x, y, z;
 
