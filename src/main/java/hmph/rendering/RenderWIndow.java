@@ -24,6 +24,7 @@ import static org.lwjgl.system.MemoryStack.*;
 import static org.lwjgl.system.MemoryUtil.*;
 import hmph.math.Matrix4f;
 import hmph.rendering.BlockRegistry;
+import hmph.player.Player;
 
 public class RenderWIndow {
     private long windowBoi;
@@ -53,6 +54,9 @@ public class RenderWIndow {
     private Map<Integer, KeyAction> keyActions = new HashMap<>();
     private ChunkManager chunkManager;
     private int renderDistance = 5;
+    private SkyboxRenderer skyboxRenderer;
+    private float gameTime = 0.0f;
+    private Player player;
 
     public RenderWIndow(String title, int width, int height, boolean vSync) {
         this.title = title;
@@ -113,23 +117,24 @@ public class RenderWIndow {
     }
 
     private void loadInputs(float deltaTime) {
+        player.setSprinting(false);
+
         for (Map.Entry<Integer, KeyAction> entry : keyActions.entrySet()) {
             int key = entry.getKey();
             KeyAction action = entry.getValue();
             if (keys[key]) action.run(deltaTime);
         }
-        camera.setMovementSpeed(keys[GLFW_KEY_LEFT_CONTROL] ? 10.0f : 5.0f);
+        camera.setPosition(player.getCameraPosition());
     }
 
     private void populateInputs() {
-        keyActions.put(GLFW_KEY_W, (dt) -> camera.moveForward(dt));
-        keyActions.put(GLFW_KEY_S, (dt) -> camera.moveBackward(dt));
-        keyActions.put(GLFW_KEY_A, (dt) -> camera.moveLeft(dt));
-        keyActions.put(GLFW_KEY_D, (dt) -> camera.moveRight(dt));
-        keyActions.put(GLFW_KEY_SPACE, (dt) -> camera.moveUp(dt));
-        keyActions.put(GLFW_KEY_LEFT_SHIFT, (dt) -> camera.moveDown(dt));
-        //keyActions.put(GLFW_KEY_ESCAPE, (dt) -> glfwSetWindowShouldClose(windowBoi, true));
-        keyActions.put(GLFW_KEY_LEFT_CONTROL, (dt) -> camera.setMovementSpeed(5.0f));
+        keyActions.put(GLFW_KEY_W, (dt) -> player.moveForward(dt));
+        keyActions.put(GLFW_KEY_S, (dt) -> player.moveBackward(dt));
+        keyActions.put(GLFW_KEY_A, (dt) -> player.moveLeft(dt));
+        keyActions.put(GLFW_KEY_D, (dt) -> player.moveRight(dt));
+        keyActions.put(GLFW_KEY_SPACE, (dt) -> player.jump());
+        keyActions.put(GLFW_KEY_LEFT_SHIFT, (dt) -> player.setSprinting(true));
+        keyActions.put(GLFW_KEY_LEFT_CONTROL, (dt) -> player.setSprinting(true));
     }
 
     private void loadRenderers() {
@@ -149,6 +154,8 @@ public class RenderWIndow {
             textureManager.loadTexture("grass", "assets/blocks/grass_block.png");
             textureManager.loadTexture("missing", "assets/blocks/missing_texture.png");
             textureManager.loadTexture("stone", "assets/blocks/stone_block.png");
+
+            skyboxRenderer = new SkyboxRenderer(shaderManager);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -178,7 +185,8 @@ public class RenderWIndow {
         }
         chunkManager = new ChunkManager(registry, renderDistance);
         chunkManager.updateChunks(new Vector3f(-999, 0, -999));
-        chunkManager.updateChunks(camera.getPosition());
+        player = new Player(new Vector3f(0, 70, 0), chunkManager, camera);
+        chunkManager.updateChunks(player.getPosition());
 
         LoggerHelper.betterPrint("ChunkManager initialized with render distance: " + renderDistance, LoggerHelper.LogType.RENDERING);
     }
@@ -225,6 +233,9 @@ public class RenderWIndow {
             double currentTime = glfwGetTime();
             float deltaTime = (float)(currentTime - lastTime);
             lastTime = currentTime;
+
+            gameTime += deltaTime * 0.1f;
+            player.update(deltaTime);
             loadInputs(deltaTime);
             renderScene();
             checkGLError("after render");
@@ -255,7 +266,23 @@ public class RenderWIndow {
         
         glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        
+
+        if (skyboxRenderer != null) {
+            ShaderProgram skyboxShader = shaderManager.getShader("skybox");
+            if (skyboxShader != null) {
+                skyboxShader.bind();
+                skyboxShader.setUniform("horizonColor", new Vector3f(0.8f, 0.9f, 1.0f));
+                skyboxShader.setUniform("zenithColor", new Vector3f(0.3f, 0.5f, 0.9f));
+                skyboxShader.setUniform("fogColor", new Vector3f(0.7f, 0.8f, 0.9f));
+                glDepthMask(false);
+                skyboxRenderer.render(camera, width, height, gameTime);
+                glDepthMask(true);
+                skyboxShader.unbind();
+            }
+        }
+
+
+
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_NONE);
@@ -276,7 +303,7 @@ public class RenderWIndow {
     private void renderChunk() {
         ShaderProgram chunkShader = shaderManager.getShader("3d");
         if (chunkShader == null) return;
-        chunkManager.updateChunks(camera.getPosition());
+        chunkManager.updateChunks(player.getPosition());
         Map<Long, ChunkBase> chunks = chunkManager.getLoadedChunks();
 
         if (chunks.isEmpty()) return;
@@ -293,9 +320,13 @@ public class RenderWIndow {
             chunkShader.setUniform("view", viewMatrix);
             chunkShader.setUniform("projection", projectionMatrix);
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, textureManager.getTexture("stone"));
+            glBindTexture(GL_TEXTURE_2D, textureManager.getTexture("grass"));
             chunkShader.setUniform("texture1", 0);
             chunkShader.setUniform("color", new Vector3f(1.0f, 1.0f, 1.0f));
+            chunkShader.setUniform("lightDirection", new Vector3f(-0.5f, -1.0f, -0.3f));
+            chunkShader.setUniform("lightColor", new Vector3f(1.0f, 1.0f, 0.9f));
+            chunkShader.setUniform("ambientStrength", 0.3f);
+
             for (ChunkBase chunk : chunks.values()) {
                 if (!chunk.isMeshBuilt()) continue;
                 int vao = chunk.getVao();
@@ -347,7 +378,7 @@ public class RenderWIndow {
             }
             while (glGetError() != GL_NO_ERROR);
             String info = String.format("Pos: (%.2f, %.2f, %.2f) Look: (%.2f, %.2f, %.2f) Dir: %s Chunks: %d",
-                    camera.getPosition().x, camera.getPosition().y, camera.getPosition().z,
+                    player.getPosition().x, player.getPosition().y, player.getPosition().z,
                     camera.getFront().x, camera.getFront().y, camera.getFront().z,
                     camera.getFacingDirection(), chunkManager.getLoadedChunkCount());
             textRenderer.renderText(info, 10, 40);
@@ -431,8 +462,6 @@ public class RenderWIndow {
     interface KeyAction {
         void run(float dt);
     }
-
-
 
     public CubeRenderer getCubeRenderer() { return cubeRenderer; }
     public Camera getCamera() { return camera; }

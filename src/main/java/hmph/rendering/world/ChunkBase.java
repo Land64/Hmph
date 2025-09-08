@@ -32,11 +32,11 @@ public class ChunkBase {
     private static final int DIRT = 2;
     private static final int GRASS = 3;
 
-    public ChunkBase(int chunkX, int chunkZ, BlockRegistry registry) {
+    public ChunkBase(int chunkX, int chunkZ, BlockRegistry registry, PerlinNoise perlin) {
         this.chunkX = chunkX;
         this.chunkZ = chunkZ;
         this.position = new Vector3f(chunkX * SIZE_X, 0, chunkZ * SIZE_Z);
-        this.perlin = new PerlinNoise();
+        this.perlin = perlin;
         this.registry = registry;
         LoggerHelper.betterPrint("Creating chunk at (" + chunkX + ", " + chunkZ + ") world pos: " + position, LoggerHelper.LogType.RENDERING);
         generateTerrain();
@@ -159,10 +159,12 @@ public class ChunkBase {
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
             glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexBuffer, GL_STATIC_DRAW);
 
-            glVertexAttribPointer(0, 3, GL_FLOAT, false, 5 * Float.BYTES, 0);
+            glVertexAttribPointer(0, 3, GL_FLOAT, false, 8 * Float.BYTES, 0);
             glEnableVertexAttribArray(0);
-            glVertexAttribPointer(1, 2, GL_FLOAT, false, 5 * Float.BYTES, 3 * Float.BYTES);
+            glVertexAttribPointer(1, 2, GL_FLOAT, false, 8 * Float.BYTES, 3 * Float.BYTES);
             glEnableVertexAttribArray(1);
+            glVertexAttribPointer(2, 3, GL_FLOAT, false, 8 * Float.BYTES, 5 * Float.BYTES);
+            glEnableVertexAttribArray(2);
 
             glBindVertexArray(0);
             glBindBuffer(GL_ARRAY_BUFFER, 0);

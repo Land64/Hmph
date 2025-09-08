@@ -10,19 +10,23 @@ public class BlockMesh {
 
     public static int addBlockMesh(int x, int y, int z, String[][][] blocks, List<Float> vertices, List<Integer> indices, BlockRegistry registry) {
         int facesAdded = 0;
-        int startVertexIndex = vertices.size() / 5;
+        int startVertexIndex = vertices.size() / 8;
         String blockName = blocks[x][y][z];
         if (blockName == null) return 0;
         BlockRegistry.BlockData data = registry.get(blockName);
         if (data == null) return 0;
+
         for (Direction dir : Direction.values()) {
             int nx = x + (int) dir.x();
             int ny = y + (int) dir.y();
             int nz = z + (int) dir.z();
             boolean shouldRender = isAirOrOutOfBounds(nx, ny, nz, blocks);
             if (!shouldRender) continue;
+
             Vector3f[] faceVertices = dir.getVertices();
-            float[][] uvs = {{0f,0f},{1f,0f},{1f,1f},{0f,1f}};
+            Vector3f normal = dir.getNormal();
+            float[][] uvs = getUVsForFace(blockName, dir);
+
             for (int i = 0; i < 4; i++) {
                 Vector3f v = faceVertices[i];
                 vertices.add((x + v.x) * BLOCK_SCALE);
@@ -30,7 +34,11 @@ public class BlockMesh {
                 vertices.add((z + v.z) * BLOCK_SCALE);
                 vertices.add(uvs[i][0]);
                 vertices.add(uvs[i][1]);
+                vertices.add(normal.x);
+                vertices.add(normal.y);
+                vertices.add(normal.z);
             }
+
             int baseIndex = startVertexIndex + facesAdded * 4;
             indices.add(baseIndex);
             indices.add(baseIndex + 1);
@@ -42,6 +50,19 @@ public class BlockMesh {
         }
 
         return facesAdded;
+    }
+
+    private static float[][] getUVsForFace(String blockName, Direction dir) {
+        if ("grass".equals(blockName)) {
+            if (dir == Direction.UP) {
+                return new float[][]{{0f,0f},{1f,0f},{1f,1f},{0f,1f}};
+            } else if (dir == Direction.DOWN) {
+                return new float[][]{{0f,0f},{1f,0f},{1f,1f},{0f,1f}};
+            } else {
+                return new float[][]{{0f,0f},{1f,0f},{1f,1f},{0f,1f}};
+            }
+        }
+        return new float[][]{{0f,0f},{1f,0f},{1f,1f},{0f,1f}};
     }
 
     private static boolean isAirOrOutOfBounds(int x, int y, int z, String[][][] blocks) {

@@ -40,6 +40,8 @@ public class Matrix4f {
         return multiply(temp);
     }
 
+
+
     public Matrix4f rotateX(float angle) {
         float cos = (float) Math.cos(angle);
         float sin = (float) Math.sin(angle);
@@ -96,6 +98,8 @@ public class Matrix4f {
         m[15] = 0.0f;
         return this;
     }
+
+
 
     public Matrix4f lookAt(Vector3f eye, Vector3f center, Vector3f up) {
         Vector3f f = new Vector3f(center.x - eye.x, center.y - eye.y, center.z - eye.z).normalize();

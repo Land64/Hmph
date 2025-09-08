@@ -5,35 +5,28 @@ import hmph.rendering.BlockRegistry;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import hmph.math.PerlinNoise;
 
 public class ChunkManager {
     private Map<Long, ChunkBase> loadedChunks = new ConcurrentHashMap<>();
     private BlockRegistry registry;
     private int renderDistance;
     private Vector3f lastPlayerChunkPos = new Vector3f();
+    private PerlinNoise sharedBruh = new PerlinNoise();
 
     public ChunkManager(BlockRegistry registry, int renderDistance) {
         this.registry = registry;
         this.renderDistance = renderDistance;
     }
 
-    /**
-     * Convert chunk coordinates to a unique key
-     */
     private long getChunkKey(int chunkX, int chunkZ) {
         return ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
     }
 
-    /**
-     * Get chunk coordinates from world position
-     */
     private int getChunkCoord(float worldCoord) {
-        return (int) Math.floor(worldCoord / ChunkBase.SIZE_X);
+        return Math.floorDiv((int)worldCoord, ChunkBase.SIZE_X);
     }
 
-    /**
-     * Update chunks around the player position
-     */
     public void updateChunks(Vector3f playerPosition) {
         int playerChunkX = getChunkCoord(playerPosition.x);
         int playerChunkZ = getChunkCoord(playerPosition.z);
@@ -45,7 +38,7 @@ public class ChunkManager {
                 for (int z = playerChunkZ - renderDistance; z <= playerChunkZ + renderDistance; z++) {
                     long key = getChunkKey(x, z);
                     if (!loadedChunks.containsKey(key)) {
-                        ChunkBase chunk = new ChunkBase(x, z, registry);
+                        ChunkBase chunk = new ChunkBase(x, z, registry, sharedBruh);
                         chunk.setChunkManager(this);
                         loadedChunks.put(key, chunk);
                     }
@@ -81,6 +74,18 @@ public class ChunkManager {
             chunk.cleanup();
         }
         loadedChunks.clear();
+    }
+
+    public int getBlockAt(int worldX, int worldY, int worldZ) {
+        int chunkX = getChunkCoord(worldX);
+        int chunkZ = getChunkCoord(worldZ);
+        long key = getChunkKey(chunkX, chunkZ);
+
+        ChunkBase chunk = loadedChunks.get(key);
+        if (chunk != null) {
+            return chunk.getBlockWorld(worldX, worldY, worldZ);
+        }
+        return 0;
     }
 
     public int getLoadedChunkCount() {

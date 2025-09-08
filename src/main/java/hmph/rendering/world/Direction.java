@@ -22,6 +22,10 @@ public enum Direction {
     public float y() { return dy; }
     public float z() { return dz; }
 
+    public Vector3f getNormal() {
+        return new Vector3f(dx, dy, dz);
+    }
+
     public Vector3f[] getVertices() {
         switch (this) {
             case NORTH: 

@@ -16,12 +16,16 @@ public class ShaderManager {
         shader.createFragmentShader(fragmentSource);
         shader.link();
         shader.bind();
+
         if (name.equals("3d")) {
             shader.createUniform("model");
             shader.createUniform("view");
             shader.createUniform("projection");
             shader.createUniform("texture1");
             shader.createUniform("color");
+            shader.createUniform("lightDirection");
+            shader.createUniform("lightColor");
+            shader.createUniform("ambientStrength");
         } else if (name.equals("textured")) {
             shader.createUniform("model");
             shader.createUniform("projection");
@@ -31,13 +35,25 @@ public class ShaderManager {
             shader.createUniform("projection");
             shader.createUniform("textColor");
             shader.createUniform("textTexture");
+        } else if (name.equals("skybox")) {
+            shader.createUniform("projection");
+            shader.createUniform("view");
+            shader.createUniform("horizonColor");
+            shader.createUniform("zenithColor");
+            shader.createUniform("fogColor");
+            shader.createUniform("time");
         }
+
         shader.unbind();
         shaders.put(name, shader);
     }
 
     public ShaderProgram getShader(String name) {
         return shaders.get(name);
+    }
+
+    public void addShader(String name, ShaderProgram shader) {
+        shaders.put(name, shader);
     }
 
     public void cleanup() {
@@ -53,6 +69,7 @@ public class ShaderManager {
         loadShader("textured", TEXTURED_VERTEX_SHADER, TEXTURED_FRAGMENT_SHADER);
         loadShader("text", TEXT_VERTEX_SHADER, TEXT_FRAGMENT_SHADER);
     }
+
     private static final String BASIC_VERTEX_SHADER = """
         #version 330 core
         layout (location = 0) in vec3 aPos;
@@ -65,6 +82,7 @@ public class ShaderManager {
             vertexColor = aColor;
         }
         """;
+
     private static final String BASIC_FRAGMENT_SHADER = """
         #version 330 core
         in vec3 vertexColor;
@@ -74,10 +92,12 @@ public class ShaderManager {
             FragColor = vec4(vertexColor, 1.0);
         }
         """;
+
     private static final String VERTEX_3D_SHADER = """
         #version 330 core
         layout (location = 0) in vec3 aPos;
         layout (location = 1) in vec2 aTexCoord;
+        layout (location = 2) in vec3 aNormal;
     
         uniform mat4 model;
         uniform mat4 view;
@@ -85,11 +105,13 @@ public class ShaderManager {
     
         out vec2 TexCoord;
         out vec3 worldPos;
+        out vec3 Normal;
     
         void main() {
             worldPos = vec3(model * vec4(aPos, 1.0));
             gl_Position = projection * view * vec4(worldPos, 1.0);
             TexCoord = aTexCoord;
+            Normal = mat3(transpose(inverse(model))) * aNormal;
         }
     """;
 
@@ -97,17 +119,30 @@ public class ShaderManager {
         #version 330 core
         in vec2 TexCoord;
         in vec3 worldPos;
+        in vec3 Normal;
         out vec4 FragColor;
     
         uniform sampler2D texture1;
         uniform vec3 color;
+        uniform vec3 lightDirection;
+        uniform vec3 lightColor;
+        uniform float ambientStrength;
     
         void main() {
             vec4 texColor = texture(texture1, TexCoord);
             if (texColor.a < 0.1) {
-                discard; //Transparency!
+                discard;
             }
-        FragColor = texColor * vec4(color, 1.0);
+            
+            vec3 norm = normalize(Normal);
+            vec3 lightDir = normalize(-lightDirection);
+            float diff = max(dot(norm, lightDir), 0.0);
+            
+            vec3 ambient = ambientStrength * lightColor;
+            vec3 diffuse = diff * lightColor;
+            vec3 lighting = ambient + diffuse;
+            
+            FragColor = texColor * vec4(color * lighting, 1.0);
         }
     """;
 
