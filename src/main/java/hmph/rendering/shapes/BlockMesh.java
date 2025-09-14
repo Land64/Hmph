@@ -7,7 +7,7 @@ import java.util.List;
 
 public class BlockMesh {
     private static final float BLOCK_SCALE = 1.0f;
-
+// simple block mesh, no biggie
     public static int addBlockMesh(int x, int y, int z, String[][][] blocks, List<Float> vertices, List<Integer> indices, BlockRegistry registry) {
         int facesAdded = 0;
         int startVertexIndex = vertices.size() / 8;

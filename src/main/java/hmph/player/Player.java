@@ -10,7 +10,7 @@ public class Player {
     public static final float GRAVITY = -9.8f;
     public static final float JUMP_STRENGTH = 5.0f;
     public static final float MOVE_SPEED = 4.317f; 
-    public static final float SPRINT_SPEED = 5.612f; 
+    public static final float SPRINT_SPEED = 5.612f * 25f;
 
     private Vector3f position;
     private Vector3f velocity;
@@ -48,8 +48,8 @@ public class Player {
         handleCollisions(newPosition, deltaTime);
 
         
-        velocity.x *= 0.91f;
-        velocity.z *= 0.91f;
+        velocity.x *= 0.85f;
+        velocity.z *= 0.85f;
     }
 
     private void handleCollisions(Vector3f newPosition, float deltaTime) {
@@ -163,6 +163,15 @@ public class Player {
         if (chunkManager == null) return false;
         
         return chunkManager.getBlockAt(x, y, z) != 0;
+    }
+
+    public void setMovementInput(Vector3f inputDirection, float deltaTime) {
+        if (camera == null) return;
+        
+        float speed = sprinting ? SPRINT_SPEED : MOVE_SPEED;
+
+        velocity.x = inputDirection.x * speed;
+        velocity.z = inputDirection.z * speed;
     }
 
     public void moveForward(float deltaTime) {

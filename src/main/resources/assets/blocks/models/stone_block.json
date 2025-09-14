@@ -1,0 +1,6 @@
+{
+  "global": "stone_block",
+  "textures": {
+    "all": "stone_block.png"
+  }
+}

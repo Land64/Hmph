@@ -4,6 +4,7 @@ import hmph.math.Vector3f;
 import hmph.math.PerlinNoise;
 import hmph.rendering.shapes.BlockMesh;
 import hmph.rendering.BlockRegistry;
+import hmph.rendering.world.dimensions.DimensionCreator;
 import hmph.util.debug.LoggerHelper;
 import org.lwjgl.BufferUtils;
 import java.nio.FloatBuffer;
@@ -38,8 +39,19 @@ public class ChunkBase {
         this.position = new Vector3f(chunkX * SIZE_X, 0, chunkZ * SIZE_Z);
         this.perlin = perlin;
         this.registry = registry;
-        LoggerHelper.betterPrint("Creating chunk at (" + chunkX + ", " + chunkZ + ") world pos: " + position, LoggerHelper.LogType.RENDERING);
+        //LoggerHelper.betterPrint("Creating chunk at (" + chunkX + ", " + chunkZ + ") world pos: " + position, LoggerHelper.LogType.RENDERING);
         generateTerrain();
+        buildMesh();
+    }
+
+    public ChunkBase(int chunkX, int chunkZ, BlockRegistry registry, PerlinNoise perlin, DimensionCreator dimensionCreator, String dimensionName) {
+        this.chunkX = chunkX;
+        this.chunkZ = chunkZ;
+        this.position = new Vector3f(chunkX * SIZE_X, 0, chunkZ * SIZE_Z);
+        this.perlin = perlin;
+        this.registry = registry;
+        //LoggerHelper.betterPrint("Creating " + dimensionName + " chunk at (" + chunkX + ", " + chunkZ + ") world pos: " + position, LoggerHelper.LogType.RENDERING);
+        generateTerrainWithDimension(dimensionCreator, dimensionName);
         buildMesh();
     }
 
@@ -65,7 +77,7 @@ public class ChunkBase {
                 height = Math.max(seaLevel, Math.min(height, SIZE_Y - 1));
 
                 if (x == 8 && z == 8) {
-                    LoggerHelper.betterPrint("Center chunk height: " + height + " (noise: " + noiseValue + ")", LoggerHelper.LogType.RENDERING);
+                    //LoggerHelper.betterPrint("Center chunk height: " + height + " (noise: " + noiseValue + ")", LoggerHelper.LogType.RENDERING);
                 }
 
                 for (int y = 0; y <= height; y++) {
@@ -96,11 +108,25 @@ public class ChunkBase {
                 ", Stone: " + registry.getNameFromID(STONE), LoggerHelper.LogType.RENDERING);
     }
 
+    private void generateTerrainWithDimension(DimensionCreator dimensionCreator, String dimensionName) {
+        DimensionCreator.TerrainData terrainData = dimensionCreator.generateTerrain(dimensionName, chunkX, chunkZ, perlin);
+        
+        for (int x = 0; x < SIZE_X; x++) {
+            for (int y = 0; y < SIZE_Y; y++) {
+                for (int z = 0; z < SIZE_Z; z++) {
+                    blocks[x][y][z] = terrainData.blocks[x][y][z];
+                }
+            }
+        }
+        
+        //LoggerHelper.betterPrint("Generated " + terrainData.blocksGenerated + " blocks for " + dimensionName + " dimension", LoggerHelper.LogType.RENDERING);
+    }
+
     private void buildMesh() {
         List<Float> vertices = new ArrayList<>();
         List<Integer> indices = new ArrayList<>();
         int facesAdded = 0;
-        LoggerHelper.betterPrint("Building mesh for chunk at " + position, LoggerHelper.LogType.RENDERING);
+        //LoggerHelper.betterPrint("Building mesh for chunk at " + position, LoggerHelper.LogType.RENDERING);
 
         String[][][] blockNames = convertIDsToNames(blocks);
 
@@ -118,11 +144,11 @@ public class ChunkBase {
             }
         }
 
-        LoggerHelper.betterPrint("Mesh built: " + vertices.size() + " vertices, " + indices.size() + " indices, " + facesAdded + " faces", LoggerHelper.LogType.RENDERING);
+        //LoggerHelper.betterPrint("Mesh built: " + vertices.size() + " vertices, " + indices.size() + " indices, " + facesAdded + " faces", LoggerHelper.LogType.RENDERING);
 
         indexCount = indices.size();
         if (indexCount == 0) {
-            LoggerHelper.betterPrint("Warning: No geometry generated for chunk at " + position, LoggerHelper.LogType.RENDERING);
+            //LoggerHelper.betterPrint("Warning: No geometry generated for chunk at " + position, LoggerHelper.LogType.RENDERING);
             return;
         }
 
@@ -171,7 +197,7 @@ public class ChunkBase {
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
             meshBuilt = true;
-            LoggerHelper.betterPrint("Successfully created VAO: " + vao + " with " + indexCount + " indices", LoggerHelper.LogType.RENDERING);
+            //LoggerHelper.betterPrint("Successfully created VAO: " + vao + " with " + indexCount + " indices", LoggerHelper.LogType.RENDERING);
 
             int error = glGetError();
             if (error != GL_NO_ERROR) {

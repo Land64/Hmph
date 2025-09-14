@@ -1,7 +1,7 @@
 package hmph.util.debug;
 
 public class LoggerHelper {
-    public static boolean isThatDebugMode = true;
+    public static boolean isThatDebugMode = false;
 
     public static void betterPrint(String msg, LogType type) {
         String prefix = "";

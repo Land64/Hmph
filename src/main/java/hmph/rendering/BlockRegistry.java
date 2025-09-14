@@ -103,7 +103,7 @@ public class BlockRegistry {
                     }
                 }
                 registerBlock(globalName, globalName, faceTextures);
-                LoggerHelper.betterPrint("Registered block: " + globalName + " with ID: " + (nextID - 1), LoggerHelper.LogType.RENDERING);
+                //LoggerHelper.betterPrint("Registered block: " + globalName + " with ID: " + (nextID - 1), LoggerHelper.LogType.RENDERING);
             }
         } catch (Exception e) {
             System.err.println("Error loading block file " + resourcePath + ": " + e.getMessage());

@@ -53,7 +53,7 @@ public class SkyboxRenderer {
     private void init() {
         createShader();
         setupMesh();
-        LoggerHelper.betterPrint("Skybox renderer initialized", LoggerHelper.LogType.RENDERING);
+        //LoggerHelper.betterPrint("Skybox renderer initialized", LoggerHelper.LogType.RENDERING);
     }
 
     private void createShader() {
@@ -198,6 +198,6 @@ public class SkyboxRenderer {
         if (vbo != 0) { glDeleteBuffers(vbo); vbo = 0; }
         if (ebo != 0) { glDeleteBuffers(ebo); ebo = 0; }
         if (skyboxShader != null) { skyboxShader.cleanup(); skyboxShader = null; }
-        LoggerHelper.betterPrint("Skybox renderer cleaned up", LoggerHelper.LogType.RENDERING);
+        //LoggerHelper.betterPrint("Skybox renderer cleaned up", LoggerHelper.LogType.RENDERING);
     }
 }

@@ -6,6 +6,7 @@ import hmph.rendering.shaders.ShaderProgram;
 import hmph.rendering.shapes.CubeRenderer;
 import hmph.rendering.world.ChunkBase;
 import hmph.rendering.world.ChunkManager;
+import hmph.rendering.world.ChunkManagerExtension;
 import hmph.rendering.world.Direction;
 import hmph.util.TextureManager;
 import hmph.util.debug.LoggerHelper;
@@ -13,6 +14,8 @@ import hmph.rendering.shaders.ShaderManager;
 import java.nio.*;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Logger;
+
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
 import org.lwjgl.system.*;
@@ -20,6 +23,7 @@ import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL20.*;
 import static org.lwjgl.opengl.GL30.*;
+import static org.lwjgl.opengl.GL11.glViewport;
 import static org.lwjgl.system.MemoryStack.*;
 import static org.lwjgl.system.MemoryUtil.*;
 import hmph.math.Matrix4f;
@@ -52,7 +56,7 @@ public class RenderWIndow {
     private boolean mouseCaptured = true;
     private TextureManager textureManager;
     private Map<Integer, KeyAction> keyActions = new HashMap<>();
-    private ChunkManager chunkManager;
+    private ChunkManagerExtension chunkManager;
     private int renderDistance = 5;
     private SkyboxRenderer skyboxRenderer;
     private float gameTime = 0.0f;
@@ -117,24 +121,70 @@ public class RenderWIndow {
     }
 
     private void loadInputs(float deltaTime) {
-        player.setSprinting(false);
-
-        for (Map.Entry<Integer, KeyAction> entry : keyActions.entrySet()) {
-            int key = entry.getKey();
-            KeyAction action = entry.getValue();
-            if (keys[key]) action.run(deltaTime);
+        boolean isMoving = false;
+        Vector3f inputDirection = new Vector3f(0, 0, 0);
+        if (keys[GLFW_KEY_W]) {
+            Vector3f front = camera.getFront();
+            inputDirection.x += front.x;
+            inputDirection.z += front.z;
+            isMoving = true;
         }
+        if (keys[GLFW_KEY_S]) {
+            Vector3f front = camera.getFront();
+            inputDirection.x -= front.x;
+            inputDirection.z -= front.z;
+            isMoving = true;
+        }
+        if (keys[GLFW_KEY_A]) {
+            Vector3f right = camera.getRight();
+            inputDirection.x -= right.x;
+            inputDirection.z -= right.z;
+            isMoving = true;
+        }
+        if (keys[GLFW_KEY_D]) {
+            Vector3f right = camera.getRight();
+            inputDirection.x += right.x;
+            inputDirection.z += right.z;
+            isMoving = true;
+        }
+
+        if (isMoving) {
+            float length = (float) Math.sqrt(inputDirection.x * inputDirection.x + inputDirection.z * inputDirection.z);
+            if (length > 0) {
+                inputDirection.x /= length;
+                inputDirection.z /= length;
+            }
+            player.setMovementInput(inputDirection, deltaTime);
+        } else {
+            player.setMovementInput(new Vector3f(0, 0, 0), deltaTime);
+        }
+        
+        // Handle other actions
+        player.setSprinting(keys[GLFW_KEY_LEFT_SHIFT] || keys[GLFW_KEY_LEFT_CONTROL]);
+        
+        if (keys[GLFW_KEY_SPACE]) {
+            player.jump();
+        }
+        
         camera.setPosition(player.getCameraPosition());
     }
 
     private void populateInputs() {
-        keyActions.put(GLFW_KEY_W, (dt) -> player.moveForward(dt));
-        keyActions.put(GLFW_KEY_S, (dt) -> player.moveBackward(dt));
-        keyActions.put(GLFW_KEY_A, (dt) -> player.moveLeft(dt));
-        keyActions.put(GLFW_KEY_D, (dt) -> player.moveRight(dt));
-        keyActions.put(GLFW_KEY_SPACE, (dt) -> player.jump());
-        keyActions.put(GLFW_KEY_LEFT_SHIFT, (dt) -> player.setSprinting(true));
-        keyActions.put(GLFW_KEY_LEFT_CONTROL, (dt) -> player.setSprinting(true));
+        keyActions.put(GLFW_KEY_1, (dt) -> switchDimension("overworld"));
+        keyActions.put(GLFW_KEY_2, (dt) -> switchDimension("greenland"));
+        keyActions.put(GLFW_KEY_3, (dt) -> switchDimension("mountains"));
+        keyActions.put(GLFW_KEY_4, (dt) -> switchDimension("flatlands"));
+    }
+
+    private void switchDimension(String dimensionName) {
+        if (chunkManager instanceof ChunkManagerExtension) {
+            ChunkManagerExtension extendedManager = (ChunkManagerExtension) chunkManager;
+            String currentDim = extendedManager.getCurrentDimension();
+            if (!currentDim.equals(dimensionName)) {
+                extendedManager.switchDimension(dimensionName);
+                player.setPosition(player.getPosition().x, 70, player.getPosition().z);
+            }
+        }
     }
 
     private void loadRenderers() {
@@ -168,7 +218,7 @@ public class RenderWIndow {
         camera.setPosition(0, 30, 0);
         camera.lookAt(new Vector3f(8, 0, 8));
 
-        LoggerHelper.betterPrint("Checking block registry:", LoggerHelper.LogType.RENDERING);
+        //LoggerHelper.betterPrint("Checking block registry:", LoggerHelper.LogType.RENDERING);
         String testBlock = registry.getNameFromID(1);
         if (testBlock == null) {
             System.err.println("WARNING: No block found with ID 1. Registry might be empty!");
@@ -179,11 +229,11 @@ public class RenderWIndow {
             }
             registry.registerBlock("stone", "solid", defaultTextures);
             testBlock = registry.getNameFromID(1);
-            LoggerHelper.betterPrint("Registered default block: " + testBlock, LoggerHelper.LogType.RENDERING);
+            //LoggerHelper.betterPrint("Registered default block: " + testBlock, LoggerHelper.LogType.RENDERING);
         } else {
-            LoggerHelper.betterPrint("Found block with ID 1: " + testBlock, LoggerHelper.LogType.RENDERING);
+            //LoggerHelper.betterPrint("Found block with ID 1: " + testBlock, LoggerHelper.LogType.RENDERING);
         }
-        chunkManager = new ChunkManager(registry, renderDistance);
+        chunkManager = new ChunkManagerExtension(registry, renderDistance);
         chunkManager.updateChunks(new Vector3f(-999, 0, -999));
         player = new Player(new Vector3f(0, 70, 0), chunkManager, camera);
         chunkManager.updateChunks(player.getPosition());
@@ -205,18 +255,73 @@ public class RenderWIndow {
 
     private void setupInputCallbacks() {
         keyCB = glfwSetKeyCallback(windowBoi, (window, key, scancode, action, mods) -> {
-            if (key >= 0 && key < keys.length) keys[key] = (action == GLFW_PRESS);
-            if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) { mouseCaptured = !mouseCaptured; glfwSetInputMode(windowBoi, GLFW_CURSOR, mouseCaptured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL); }
+            if (key >= 0 && key < keys.length) {
+                keys[key] = (action == GLFW_PRESS || action == GLFW_REPEAT);
+            }
+            if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) { 
+                mouseCaptured = !mouseCaptured; 
+                glfwSetInputMode(windowBoi, GLFW_CURSOR, mouseCaptured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL); 
+            }
         });
         curosrPosCB = glfwSetCursorPosCallback(windowBoi, (window, xpos, ypos) -> {
-            if (firstMouse) { lastMouseX = xpos; lastMouseY = ypos; firstMouse = false; }
-            double xOffset = xpos - lastMouseX;
-            double yOffset = lastMouseY - ypos;
-            lastMouseX = xpos; lastMouseY = ypos;
-            camera.processMouseMovement((float)xOffset, (float)yOffset, true);
+            if (!mouseCaptured)
+            {
+                LoggerHelper.betterPrint("Probably in a menu!", LoggerHelper.LogType.DEBUG);
+                return;
+            }
+
+
+            if (firstMouse) {
+                lastMouseX = xpos;
+                lastMouseY = ypos;
+                firstMouse = false;
+            }
+
+            if (mouseCaptured) {
+                double xOffset = xpos - lastMouseX;
+                double yOffset = lastMouseY - ypos;
+                camera.processMouseMovement((float)xOffset, (float)yOffset, true);
+            }
+
+            lastMouseX = xpos;
+            lastMouseY = ypos;
         });
         glfwSetScrollCallback(windowBoi, (window, xoffset, yoffset) -> camera.processMouseScroll((float)yoffset));
+        setupWindowSizeCallback();
     }
+
+    private void setupWindowSizeCallback() {
+        windowSizeCB = glfwSetWindowSizeCallback(windowBoi, (window, newWidth, newHeight) -> {
+            this.width = newWidth;
+            this.height = newHeight;
+            
+            // Update OpenGL viewport
+            glViewport(0, 0, newWidth, newHeight);
+            
+            // Update GUI renderers if they exist
+            if (textRenderer != null) {
+                try {
+                    // Try to update text renderer dimensions if method exists
+                    textRenderer.getClass().getMethod("updateDimensions", float.class, float.class)
+                        .invoke(textRenderer, (float)newWidth, (float)newHeight);
+                } catch (Exception e) {
+                    // Method doesn't exist yet, that's okay
+                }
+            }
+            if (imageRenderer != null) {
+                try {
+                    // Try to update image renderer dimensions if method exists
+                    imageRenderer.getClass().getMethod("updateDimensions", float.class, float.class)
+                        .invoke(imageRenderer, (float)newWidth, (float)newHeight);
+                } catch (Exception e) {
+                    // Method doesn't exist yet, that's okay
+                }
+            }
+            
+            LoggerHelper.betterPrint("Window resized to: " + newWidth + "x" + newHeight, LoggerHelper.LogType.INFO);
+        });
+    }
+
 
     private void setupWindowClose() {
         windowCloseCB = glfwSetWindowCloseCallback(windowBoi, window -> { LoggerHelper.betterPrint("Running Cleanup", LoggerHelper.LogType.INFO); cleanup(); });
@@ -377,10 +482,12 @@ public class RenderWIndow {
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
             while (glGetError() != GL_NO_ERROR);
-            String info = String.format("Pos: (%.2f, %.2f, %.2f) Look: (%.2f, %.2f, %.2f) Dir: %s Chunks: %d",
+
+            String currentDim = (chunkManager instanceof ChunkManagerExtension) ? ((ChunkManagerExtension) chunkManager).getCurrentDimension() : "overworld";
+
+            String info = String.format("Pos: (%.2f, %.2f, %.2f) Dim: %s Chunks: %d",
                     player.getPosition().x, player.getPosition().y, player.getPosition().z,
-                    camera.getFront().x, camera.getFront().y, camera.getFront().z,
-                    camera.getFacingDirection(), chunkManager.getLoadedChunkCount());
+                    currentDim, chunkManager.getLoadedChunkCount());
             textRenderer.renderText(info, 10, 40);
 
 
