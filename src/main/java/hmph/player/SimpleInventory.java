@@ -10,7 +10,6 @@ public class SimpleInventory {
 
     public SimpleInventory() {
         items = new HashMap<>();
-        // Give player some starting blocks
         items.put("stone", 64);
         items.put("dirt", 64);
         items.put("grass", 64);
