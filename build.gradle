@@ -16,22 +16,25 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    // Local ImGui JARs
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
+def lwjglVersion = "3.3.6"
 
-    implementation 'org.lwjgl:lwjgl:3.3.3'
-    implementation 'org.lwjgl:lwjgl-glfw:3.3.3'
-    implementation 'org.lwjgl:lwjgl-opengl:3.3.3'
-    runtimeOnly 'org.lwjgl:lwjgl:3.3.3:natives-windows'
-    runtimeOnly 'org.lwjgl:lwjgl-glfw:3.3.3:natives-windows'
-    runtimeOnly 'org.lwjgl:lwjgl-opengl:3.3.3:natives-windows'
+dependencies {
+    implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
+
+    implementation "org.lwjgl:lwjgl"
+    implementation "org.lwjgl:lwjgl-glfw"
+    implementation "org.lwjgl:lwjgl-opengl"
+    implementation "org.lwjgl:lwjgl-stb"
+
+    runtimeOnly "org.lwjgl:lwjgl::natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-stb::natives-windows"
 
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
-
 
 sourceSets {
     main {
