@@ -21,11 +21,12 @@ public class SkyboxRenderer {
     private ShaderProgram skyboxShader;
     private ShaderManager shaderManager;
 
-    private Vector3f horizonColor = new Vector3f(0.8f, 0.9f, 1.0f);
-    private Vector3f zenithColor = new Vector3f(0.3f, 0.5f, 0.9f);
-    private Vector3f fogColor = new Vector3f(0.7f, 0.8f, 0.9f);
+    private float timeOfDay = 0.5f;
+    private boolean autoTime = true;
+    private float gameTime = 0f;
+    private float dayLength = 60f;
 
-    private float[] vertices = {
+    private final float[] vertices = {
             -1.0f, -1.0f, -1.0f,
             1.0f, -1.0f, -1.0f,
             1.0f, -1.0f,  1.0f,
@@ -36,7 +37,7 @@ public class SkyboxRenderer {
             -1.0f,  1.0f,  1.0f
     };
 
-    private int[] indices = {
+    private final int[] indices = {
             0, 1, 2,  2, 3, 0,
             4, 6, 5,  6, 4, 7,
             0, 4, 5,  5, 1, 0,
@@ -53,60 +54,81 @@ public class SkyboxRenderer {
     private void init() {
         createShader();
         setupMesh();
-        //LoggerHelper.betterPrint("Skybox renderer initialized", LoggerHelper.LogType.RENDERING);
     }
 
     private void createShader() {
-        String vertexSource = """
-            #version 330 core
-            layout (location = 0) in vec3 aPos;
-            
-            uniform mat4 projection;
-            uniform mat4 view;
-            
-            out vec3 worldPos;
-            
-            void main() {
-                mat4 rotView = mat4(mat3(view));
-                vec4 pos = projection * rotView * vec4(aPos, 1.0);
-                gl_Position = pos.xyww;
-                worldPos = aPos;
-            }
-            """;
+        String vertexSource =
+                "#version 330 core\n" +
+                        "layout (location = 0) in vec3 aPos;\n" +
+                        "\n" +
+                        "uniform mat4 projection;\n" +
+                        "uniform mat4 view;\n" +
+                        "\n" +
+                        "out vec3 worldPos;\n" +
+                        "\n" +
+                        "void main() {\n" +
+                        "    mat4 rotView = mat4(mat3(view));\n" +
+                        "    vec4 pos = projection * rotView * vec4(aPos, 1.0);\n" +
+                        "    gl_Position = pos.xyww;\n" +
+                        "    worldPos = aPos;\n" +
+                        "}\n";
 
-        String fragmentSource = """
-            #version 330 core
-            in vec3 worldPos;
-            
-            uniform vec3 horizonColor;
-            uniform vec3 zenithColor;
-            uniform vec3 fogColor;
-            uniform float time;
-            
-            out vec4 FragColor;
-            
-            void main() {
-                float normalizedY = (worldPos.y + 1.0) * 0.5;
-                
-                vec3 skyColor;
-                if (normalizedY < 0.3) {
-                    float t = normalizedY / 0.3;
-                    skyColor = mix(fogColor, horizonColor, t);
-                } else {
-                    float t = (normalizedY - 0.3) / 0.7;
-                    t = smoothstep(0.0, 1.0, t);
-                    skyColor = mix(horizonColor, zenithColor, t);
-                }
-                
-                float pulse = 0.02 * sin(time * 0.1);
-                skyColor += vec3(pulse, pulse * 0.5, pulse);
-                
-                float atmosphere = 1.0 - abs(worldPos.y) * 0.1;
-                skyColor *= atmosphere;
-                
-                FragColor = vec4(skyColor, 1.0);
-            }
-            """;
+        String fragmentSource =
+                "#version 330 core\n" +
+                        "in vec3 worldPos;\n" +
+                        "\n" +
+                        "uniform float timeOfDay;\n" +
+                        "uniform vec3 horizonColor;\n" +
+                        "uniform vec3 zenithColor;\n" +
+                        "uniform vec3 fogColor;\n" +
+                        "\n" +
+                        "\n" +
+                        "out vec4 FragColor;\n" +
+                        "\n" +
+                        "void main() {\n" +
+                        "    float normalizedY = (worldPos.y + 1.0) * 0.5;\n" +
+                        "\n" +
+                        "    vec3 dayHorizon = vec3(0.8, 0.9, 1.0);\n" +
+                        "    vec3 dayZenith  = vec3(0.3, 0.5, 0.9);\n" +
+                        "\n" +
+                        "    vec3 sunsetHorizon = vec3(1.0, 0.6, 0.3);\n" +
+                        "    vec3 sunsetZenith  = vec3(0.4, 0.3, 0.6);\n" +
+                        "\n" +
+                        "    vec3 nightHorizon = vec3(0.1, 0.1, 0.2);\n" +
+                        "    vec3 nightZenith  = vec3(0.02, 0.02, 0.1);\n" +
+                        "\n" +
+                        "    vec3 horizon;\n" +
+                        "    vec3 zenith;\n" +
+                        "\n" +
+                        "    if (timeOfDay < 0.25) {\n" +
+                        "        float t = timeOfDay / 0.25;\n" +
+                        "        horizon = mix(nightHorizon, sunsetHorizon, t);\n" +
+                        "        zenith  = mix(nightZenith, sunsetZenith, t);\n" +
+                        "    } else if (timeOfDay < 0.5) {\n" +
+                        "        float t = (timeOfDay - 0.25) / 0.25;\n" +
+                        "        horizon = mix(sunsetHorizon, dayHorizon, t);\n" +
+                        "        zenith  = mix(sunsetZenith, dayZenith, t);\n" +
+                        "    } else if (timeOfDay < 0.75) {\n" +
+                        "        float t = (timeOfDay - 0.5) / 0.25;\n" +
+                        "        horizon = mix(dayHorizon, sunsetHorizon, t);\n" +
+                        "        zenith  = mix(dayZenith, sunsetZenith, t);\n" +
+                        "    } else {\n" +
+                        "        float t = (timeOfDay - 0.75) / 0.25;\n" +
+                        "        horizon = mix(sunsetHorizon, nightHorizon, t);\n" +
+                        "        zenith  = mix(sunsetZenith, nightZenith, t);\n" +
+                        "    }\n" +
+                        "\n" +
+                        "    vec3 skyColor;\n" +
+                        "    if (normalizedY < 0.3) {\n" +
+                        "        float t = normalizedY / 0.3;\n" +
+                        "        skyColor = mix(nightHorizon, horizon, t);\n" +
+                        "    } else {\n" +
+                        "        float t = (normalizedY - 0.3) / 0.7;\n" +
+                        "        skyColor = mix(horizon, zenith, t);\n" +
+                        "    }\n" +
+                        "\n" +
+                        "    FragColor = vec4(skyColor, 1.0);\n" +
+                        "}\n";
 
         try {
             shaderManager.loadShader("skybox", vertexSource, fragmentSource);
@@ -141,7 +163,20 @@ public class SkyboxRenderer {
         glBindVertexArray(0);
     }
 
-    public void render(Camera camera, int width, int height, float time) {
+    public void setTimeOfDay(float t) {
+        timeOfDay = Math.max(0.0f, Math.min(1.0f, t));
+        autoTime = false;
+    }
+
+    public void resumeDayCycle() {
+        autoTime = true;
+    }
+
+    public void render(Camera camera, int width, int height, float deltaTime) {
+        renderWithTime(camera, width, height, 0.5f);
+    }
+
+    public void renderWithTime(Camera camera, int width, int height, float timeOfDay) {
         skyboxShader.bind();
 
         glDisable(GL_DEPTH_TEST);
@@ -152,14 +187,16 @@ public class SkyboxRenderer {
         view.m[13] = 0;
         view.m[14] = 0;
 
-        Matrix4f projection = new Matrix4f().perspective((float) Math.toRadians(70.0f), (float) width / height, 0.1f, 1000.0f);
+        Matrix4f projection = new Matrix4f().perspective(
+                (float) Math.toRadians(70.0f),
+                (float) width / height,
+                0.1f,
+                1000.0f
+        );
 
         skyboxShader.setUniform("view", view);
         skyboxShader.setUniform("projection", projection);
-        skyboxShader.setUniform("horizonColor", horizonColor);
-        skyboxShader.setUniform("zenithColor", zenithColor);
-        skyboxShader.setUniform("fogColor", fogColor);
-        skyboxShader.setUniform("time", time);
+        skyboxShader.setUniform("timeOfDay", timeOfDay);
 
         glBindVertexArray(vao);
         glDrawElements(GL_TRIANGLES, indices.length, GL_UNSIGNED_INT, 0);
@@ -171,33 +208,10 @@ public class SkyboxRenderer {
         skyboxShader.unbind();
     }
 
-    public void setHorizonColor(Vector3f color) { this.horizonColor = color; }
-    public void setZenithColor(Vector3f color) { this.zenithColor = color; }
-    public void setFogColor(Vector3f color) { this.fogColor = color; }
-
-    public void setDayColors() {
-        horizonColor = new Vector3f(0.8f, 0.9f, 1.0f);
-        zenithColor = new Vector3f(0.3f, 0.5f, 0.9f);
-        fogColor = new Vector3f(0.7f, 0.8f, 0.9f);
-    }
-
-    public void setSunsetColors() {
-        horizonColor = new Vector3f(1.0f, 0.6f, 0.3f);
-        zenithColor = new Vector3f(0.4f, 0.3f, 0.6f);
-        fogColor = new Vector3f(1.0f, 0.8f, 0.5f);
-    }
-
-    public void setNightColors() {
-        horizonColor = new Vector3f(0.1f, 0.1f, 0.2f);
-        zenithColor = new Vector3f(0.02f, 0.02f, 0.1f);
-        fogColor = new Vector3f(0.05f, 0.05f, 0.15f);
-    }
-
     public void cleanup() {
         if (vao != 0) { glDeleteVertexArrays(vao); vao = 0; }
         if (vbo != 0) { glDeleteBuffers(vbo); vbo = 0; }
         if (ebo != 0) { glDeleteBuffers(ebo); ebo = 0; }
         if (skyboxShader != null) { skyboxShader.cleanup(); skyboxShader = null; }
-        //LoggerHelper.betterPrint("Skybox renderer cleaned up", LoggerHelper.LogType.RENDERING);
     }
 }

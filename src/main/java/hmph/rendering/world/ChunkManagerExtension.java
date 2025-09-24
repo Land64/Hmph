@@ -1,10 +1,12 @@
 package hmph.rendering.world;
+
 import hmph.math.Vector3f;
 import hmph.rendering.BlockRegistry;
 import hmph.rendering.world.dimensions.DimensionCreator;
 import hmph.math.PerlinNoise;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
 public class ChunkManagerExtension extends ChunkManager {
     private DimensionCreator dimensionCreator;
     private String currentDimension = "overworld";
@@ -13,18 +15,22 @@ public class ChunkManagerExtension extends ChunkManager {
     private int renderDistance;
     private Vector3f lastPlayerChunkPos = new Vector3f();
     private PerlinNoise sharedBruh = new PerlinNoise();
+
     public ChunkManagerExtension(BlockRegistry registry, int renderDistance) {
         super(registry, renderDistance);
         this.registry = registry;
         this.renderDistance = renderDistance;
         this.dimensionCreator = new DimensionCreator(registry);
     }
+
     @Override
     public void updateChunks(Vector3f playerPosition) {
         int playerChunkX = getChunkCoord(playerPosition.x);
         int playerChunkZ = getChunkCoord(playerPosition.z);
+
         if (playerChunkX != (int)lastPlayerChunkPos.x || playerChunkZ != (int)lastPlayerChunkPos.z) {
             lastPlayerChunkPos.set(playerChunkX, 0, playerChunkZ);
+
             for (int x = playerChunkX - renderDistance; x <= playerChunkX + renderDistance; x++) {
                 for (int z = playerChunkZ - renderDistance; z <= playerChunkZ + renderDistance; z++) {
                     long key = getChunkKey(x, z);
@@ -35,6 +41,7 @@ public class ChunkManagerExtension extends ChunkManager {
                     }
                 }
             }
+
             loadedChunks.entrySet().removeIf(entry -> {
                 long key = entry.getKey();
                 int chunkX = (int)(key >> 32);
@@ -47,16 +54,66 @@ public class ChunkManagerExtension extends ChunkManager {
             });
         }
     }
+
+    /**
+     * Set a block at world coordinates and rebuild affected chunk meshes
+     */
+    public void setBlockAt(int worldX, int worldY, int worldZ, int blockId) {
+        int chunkX = getChunkCoord(worldX);
+        int chunkZ = getChunkCoord(worldZ);
+
+        long chunkKey = getChunkKey(chunkX, chunkZ);
+        ChunkBase chunk = loadedChunks.get(chunkKey);
+
+        if (chunk != null) {
+            int localX = worldX - (chunkX * ChunkBase.SIZE_X);
+            int localZ = worldZ - (chunkZ * ChunkBase.SIZE_Z);
+
+            if (localX >= 0 && localX < ChunkBase.SIZE_X && localZ >= 0 && localZ < ChunkBase.SIZE_Z && worldY >= 0 && worldY < ChunkBase.SIZE_Y) {
+
+                chunk.setBlock(localX, worldY, localZ, blockId);
+                chunk.rebuildMesh();
+                rebuildNeighborChunksIfNeeded(worldX, worldY, worldZ, chunkX, chunkZ);
+            }
+        }
+    }
+
+    /**
+     * Rebuild neighboring chunk meshes if the modified block is on a chunk boundary
+     */
+    private void rebuildNeighborChunksIfNeeded(int worldX, int worldY, int worldZ, int chunkX, int chunkZ) {
+        int localX = worldX - (chunkX * ChunkBase.SIZE_X);
+        int localZ = worldZ - (chunkZ * ChunkBase.SIZE_Z);
+
+        if (localX == 0) { // West boundary
+            ChunkBase westChunk = loadedChunks.get(getChunkKey(chunkX - 1, chunkZ));
+            if (westChunk != null) westChunk.rebuildMesh();
+        }
+        if (localX == ChunkBase.SIZE_X - 1) {
+            ChunkBase eastChunk = loadedChunks.get(getChunkKey(chunkX + 1, chunkZ));
+            if (eastChunk != null) eastChunk.rebuildMesh();
+        }
+        if (localZ == 0) {
+            ChunkBase northChunk = loadedChunks.get(getChunkKey(chunkX, chunkZ - 1));
+            if (northChunk != null) northChunk.rebuildMesh();
+        }
+        if (localZ == ChunkBase.SIZE_Z - 1) {
+            ChunkBase southChunk = loadedChunks.get(getChunkKey(chunkX, chunkZ + 1));
+            if (southChunk != null) southChunk.rebuildMesh();
+        }
+    }
+
     @Override
     public Map<Long, ChunkBase> getLoadedChunks() {
         return loadedChunks;
     }
-    @Override
-    public ChunkBase getChunkAt(float worldX, float worldZ) {
+
+    public ChunkBase getChunkAt(int worldX, int worldZ) {
         int chunkX = getChunkCoord(worldX);
         int chunkZ = getChunkCoord(worldZ);
         return loadedChunks.get(getChunkKey(chunkX, chunkZ));
     }
+
     @Override
     public void cleanup() {
         for (ChunkBase chunk : loadedChunks.values()) {
@@ -64,36 +121,49 @@ public class ChunkManagerExtension extends ChunkManager {
         }
         loadedChunks.clear();
     }
+
     @Override
     public int getBlockAt(int worldX, int worldY, int worldZ) {
         int chunkX = getChunkCoord(worldX);
         int chunkZ = getChunkCoord(worldZ);
         long key = getChunkKey(chunkX, chunkZ);
         ChunkBase chunk = loadedChunks.get(key);
+
         if (chunk != null) {
             return chunk.getBlockWorld(worldX, worldY, worldZ);
         }
         return 0;
     }
+
     @Override
     public int getLoadedChunkCount() {
         return loadedChunks.size();
     }
+
     private long getChunkKey(int chunkX, int chunkZ) {
         return ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
     }
+
     private int getChunkCoord(float worldCoord) {
         return Math.floorDiv((int)worldCoord, ChunkBase.SIZE_X);
     }
+
+    private int getChunkCoord(int worldCoord) {
+        return Math.floorDiv(worldCoord, ChunkBase.SIZE_X);
+    }
+
     public void switchDimension(String dimensionName) {
         if (!dimensionCreator.getAvailableDimensions().contains(dimensionName)) return;
+
         cleanup();
         currentDimension = dimensionName;
         lastPlayerChunkPos.set(-999, 0, -999);
     }
+
     public String getCurrentDimension() {
         return currentDimension;
     }
+
     public DimensionCreator getDimensionCreator() {
         return dimensionCreator;
     }

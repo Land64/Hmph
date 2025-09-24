@@ -20,20 +20,22 @@ import static org.lwjgl.opengl.GL20.*;
 import static org.lwjgl.opengl.GL30.*;
 
 public class TextRenderer {
-    private static final int BITMAP_W = 512;
-    private static final int BITMAP_H = 512;
+    public static final int BITMAP_W = 512;
+    public static final int BITMAP_H = 512;
     private int vao;
     private int vbo;
     private int textureID;
-    private STBTTBakedChar.Buffer charData;
+    public STBTTBakedChar.Buffer charData;
     private ShaderProgram shader;
     private float screenWidth;
     private float screenHeight;
+    private float fontHeight;
 
     public TextRenderer(String fontResourcePath, float fontHeight, ShaderProgram shader, float screenWidth, float screenHeight) throws IOException {
         this.shader = shader;
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
+        this.fontHeight = fontHeight;
 
         try (InputStream is = getClass().getClassLoader().getResourceAsStream(fontResourcePath)) {
             if (is == null) {
@@ -76,6 +78,11 @@ public class TextRenderer {
             throw new IOException("Failed to initialize TextRenderer", e);
         }
     }
+
+    public float getFontHeight() {
+        return fontHeight;
+    }
+
 
     public void renderText(String text, float x, float y) {
         if (text == null || text.isEmpty()) {

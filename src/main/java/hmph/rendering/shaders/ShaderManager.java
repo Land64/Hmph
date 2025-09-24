@@ -26,6 +26,7 @@ public class ShaderManager {
             shader.createUniform("lightDirection");
             shader.createUniform("lightColor");
             shader.createUniform("ambientStrength");
+            shader.createUniform("ambientColor");
         } else if (name.equals("textured")) {
             shader.createUniform("model");
             shader.createUniform("projection");
@@ -36,13 +37,12 @@ public class ShaderManager {
             shader.createUniform("textColor");
             shader.createUniform("textTexture");
         } else if (name.equals("skybox")) {
-            shader.createUniform("projection");
-            shader.createUniform("view");
-            shader.createUniform("horizonColor");
-            shader.createUniform("zenithColor");
-            shader.createUniform("fogColor");
-            shader.createUniform("time");
+            shader.createUniformSafe("projection");
+            shader.createUniformSafe("view");
+            shader.createUniformSafe("timeOfDay");
         }
+
+
 
         shader.unbind();
         shaders.put(name, shader);
@@ -70,133 +70,128 @@ public class ShaderManager {
         loadShader("text", TEXT_VERTEX_SHADER, TEXT_FRAGMENT_SHADER);
     }
 
-    private static final String BASIC_VERTEX_SHADER = """
-        #version 330 core
-        layout (location = 0) in vec3 aPos;
-        layout (location = 1) in vec3 aColor;
-        
-        out vec3 vertexColor;
-        
-        void main() {
-            gl_Position = vec4(aPos, 1.0);
-            vertexColor = aColor;
-        }
-        """;
+    private static final String BASIC_VERTEX_SHADER =
+            "#version 330 core\n" +
+            "layout (location = 0) in vec3 aPos;\n" +
+            "layout (location = 1) in vec3 aColor;\n" +
+            "\n" +
+            "out vec3 vertexColor;\n" +
+            "\n" +
+            "void main() {\n" +
+            "    gl_Position = vec4(aPos, 1.0);\n" +
+            "    vertexColor = aColor;\n" +
+            "}\n";
 
-    private static final String BASIC_FRAGMENT_SHADER = """
-        #version 330 core
-        in vec3 vertexColor;
-        out vec4 FragColor;
-        
-        void main() {
-            FragColor = vec4(vertexColor, 1.0);
-        }
-        """;
+    private static final String BASIC_FRAGMENT_SHADER =
+            "#version 330 core\n" +
+            "in vec3 vertexColor;\n" +
+            "out vec4 FragColor;\n" +
+            "\n" +
+            "void main() {\n" +
+            "    FragColor = vec4(vertexColor, 1.0);\n" +
+            "}\n";
 
-    private static final String VERTEX_3D_SHADER = """
-        #version 330 core
-        layout (location = 0) in vec3 aPos;
-        layout (location = 1) in vec2 aTexCoord;
-        layout (location = 2) in vec3 aNormal;
-    
-        uniform mat4 model;
-        uniform mat4 view;
-        uniform mat4 projection;
-    
-        out vec2 TexCoord;
-        out vec3 worldPos;
-        out vec3 Normal;
-    
-        void main() {
-            worldPos = vec3(model * vec4(aPos, 1.0));
-            gl_Position = projection * view * vec4(worldPos, 1.0);
-            TexCoord = aTexCoord;
-            Normal = mat3(transpose(inverse(model))) * aNormal;
-        }
-    """;
+    private static final String VERTEX_3D_SHADER =
+            "#version 330 core\n" +
+            "layout (location = 0) in vec3 aPos;\n" +
+            "layout (location = 1) in vec2 aTexCoord;\n" +
+            "layout (location = 2) in vec3 aNormal;\n" +
+            "\n" +
+            "uniform mat4 model;\n" +
+            "uniform mat4 view;\n" +
+            "uniform mat4 projection;\n" +
+            "\n" +
+            "out vec2 TexCoord;\n" +
+            "out vec3 worldPos;\n" +
+            "out vec3 Normal;\n" +
+            "\n" +
+            "void main() {\n" +
+            "    worldPos = vec3(model * vec4(aPos, 1.0));\n" +
+            "    gl_Position = projection * view * vec4(worldPos, 1.0);\n" +
+            "    TexCoord = aTexCoord;\n" +
+            "    Normal = mat3(transpose(inverse(model))) * aNormal;\n" +
+            "}\n";
 
-    private static final String FRAGMENT_3D_SHADER = """
-        #version 330 core
-        in vec2 TexCoord;
-        in vec3 worldPos;
-        in vec3 Normal;
-        out vec4 FragColor;
-    
-        uniform sampler2D texture1;
-        uniform vec3 color;
-        uniform vec3 lightDirection;
-        uniform vec3 lightColor;
-        uniform float ambientStrength;
-    
-        void main() {
-            vec4 texColor = texture(texture1, TexCoord);
-            if (texColor.a < 0.1) {
-                discard;
-            }
-            
-            vec3 norm = normalize(Normal);
-            vec3 lightDir = normalize(-lightDirection);
-            float diff = max(dot(norm, lightDir), 0.0);
-            
-            vec3 ambient = ambientStrength * lightColor;
-            vec3 diffuse = diff * lightColor;
-            vec3 lighting = ambient + diffuse;
-            
-            FragColor = texColor * vec4(color * lighting, 1.0);
-        }
-    """;
+    private static final String FRAGMENT_3D_SHADER =
+            "#version 330 core\n" +
+            "in vec2 TexCoord;\n" +
+            "in vec3 worldPos;\n" +
+            "in vec3 Normal;\n" +
+            "out vec4 FragColor;\n" +
+            "\n" +
+            "uniform sampler2D texture1;\n" +
+            "uniform vec3 color;\n" +
+            "uniform vec3 lightDirection;\n" +
+            "uniform vec3 lightColor;\n" +
+            "uniform float ambientStrength;\n" +
+            "uniform vec3 ambientColor;\n" +
+            "\n" +
+            "void main() {\n" +
+            "    vec4 texColor = texture(texture1, TexCoord);\n" +
+            "    if (texColor.a < 0.1) {\n" +
+            "        discard;\n" +
+            "    }\n" +
+            "    \n" +
+            "    vec3 norm = normalize(Normal);\n" +
+            "    vec3 lightDir = normalize(-lightDirection);\n" +
+            "    float diff = max(dot(norm, lightDir), 0.0);\n" +
+            "    \n" +
+            "    vec3 ambient = ambientStrength * ambientColor;\n" +
+            "    vec3 diffuse = diff * lightColor;\n" +
+            "    vec3 lighting = ambient + diffuse;\n" +
+            "    \n" +
+            "    lighting = max(lighting, vec3(0.05, 0.05, 0.1));\n" +
+            "    \n" +
+            "    FragColor = texColor * vec4(color * lighting, 1.0);\n" +
+            "}\n";
 
-    private static final String TEXTURED_VERTEX_SHADER = """
-        #version 330 core
-        layout (location = 0) in vec2 aPos;
-        layout (location = 1) in vec2 aTexCoord;
-        
-        uniform mat4 model;
-        uniform mat4 projection;
-        
-        out vec2 TexCoord;
-        
-        void main() {
-            gl_Position = projection * model * vec4(aPos, 0.0, 1.0);
-            TexCoord = aTexCoord;
-        }
-        """;
+    private static final String TEXTURED_VERTEX_SHADER =
+            "#version 330 core\n" +
+            "layout (location = 0) in vec2 aPos;\n" +
+            "layout (location = 1) in vec2 aTexCoord;\n" +
+            "\n" +
+            "uniform mat4 model;\n" +
+            "uniform mat4 projection;\n" +
+            "\n" +
+            "out vec2 TexCoord;\n" +
+            "\n" +
+            "void main() {\n" +
+            "    gl_Position = projection * model * vec4(aPos, 0.0, 1.0);\n" +
+            "    TexCoord = aTexCoord;\n" +
+            "}\n";
 
-    private static final String TEXTURED_FRAGMENT_SHADER = """
-        #version 330 core
-        in vec2 TexCoord;
-        out vec4 FragColor;
-        
-        uniform sampler2D texture1;
-        uniform vec3 color;
-        
-        void main() {
-            vec4 texColor = texture(texture1, TexCoord);
-            FragColor = texColor * vec4(color, 1.0);
-        }
-        """;
+    private static final String TEXTURED_FRAGMENT_SHADER =
+            "#version 330 core\n" +
+            "in vec2 TexCoord;\n" +
+            "out vec4 FragColor;\n" +
+            "\n" +
+            "uniform sampler2D texture1;\n" +
+            "uniform vec3 color;\n" +
+            "\n" +
+            "void main() {\n" +
+            "    vec4 texColor = texture(texture1, TexCoord);\n" +
+            "    FragColor = texColor * vec4(color, 1.0);\n" +
+            "}\n";
 
-    private static final String TEXT_VERTEX_SHADER = """
-        #version 330 core
-        layout(location = 0) in vec2 aPos;
-        layout(location = 1) in vec2 aTex;
-        out vec2 TexCoords;
-        uniform mat4 projection;
-        void main() {
-            gl_Position = projection * vec4(aPos, 0.0, 1.0);
-            TexCoords = aTex;
-        }
-    """;
+    private static final String TEXT_VERTEX_SHADER =
+            "#version 330 core\n" +
+            "layout(location = 0) in vec2 aPos;\n" +
+            "layout(location = 1) in vec2 aTex;\n" +
+            "out vec2 TexCoords;\n" +
+            "uniform mat4 projection;\n" +
+            "void main() {\n" +
+            "    gl_Position = projection * vec4(aPos, 0.0, 1.0);\n" +
+            "    TexCoords = aTex;\n" +
+            "}\n";
 
-    private static final String TEXT_FRAGMENT_SHADER = """
-        #version 330 core
-        in vec2 TexCoords;
-        out vec4 FragColor;
-        uniform sampler2D textTexture;
-        uniform vec3 textColor;
-        void main() {
-            float alpha = texture(textTexture, TexCoords).r;
-            FragColor = vec4(textColor, alpha);
-        }
-    """;
+    private static final String TEXT_FRAGMENT_SHADER =
+            "#version 330 core\n" +
+            "in vec2 TexCoords;\n" +
+            "out vec4 FragColor;\n" +
+            "uniform sampler2D textTexture;\n" +
+            "uniform vec3 textColor;\n" +
+            "void main() {\n" +
+            "    float alpha = texture(textTexture, TexCoords).r;\n" +
+            "    FragColor = vec4(textColor, alpha);\n" +
+            "}\n";
 }

@@ -2,6 +2,7 @@ package hmph.player;
 
 import hmph.math.Vector3f;
 import hmph.rendering.world.ChunkManager;
+import hmph.rendering.BlockRegistry;
 import hmph.rendering.Camera;
 
 public class Player {
@@ -9,7 +10,7 @@ public class Player {
     public static final float PLAYER_WIDTH = 0.6f;
     public static final float GRAVITY = -9.8f;
     public static final float JUMP_STRENGTH = 5.0f;
-    public static final float MOVE_SPEED = 4.317f; 
+    public static final float MOVE_SPEED = 4.317f;
     public static final float SPRINT_SPEED = 5.612f * 25f;
 
     private Vector3f position;
@@ -19,7 +20,15 @@ public class Player {
     private ChunkManager chunkManager;
     private Camera camera;
 
-    
+    // Block interaction components
+    private BlockRegistry blockRegistry;
+    private SimpleInventory inventory;
+    private BlockInteraction.RaycastResult currentLookingAt;
+    private float blockBreakCooldown = 0.0f;
+    private float blockPlaceCooldown = 0.0f;
+    private static final float BREAK_COOLDOWN_TIME = 0.2f; // 200ms between breaks
+    private static final float PLACE_COOLDOWN_TIME = 0.15f; // 150ms between placements
+
     private static final float EYE_HEIGHT = 1.62f;
 
     public Player(Vector3f startPosition, ChunkManager chunkManager, Camera camera) {
@@ -29,74 +38,207 @@ public class Player {
         this.sprinting = false;
         this.chunkManager = chunkManager;
         this.camera = camera;
+        this.inventory = new SimpleInventory();
+        this.currentLookingAt = new BlockInteraction.RaycastResult();
+    }
+
+    // Add a setter for BlockRegistry (called after player creation)
+    public void setBlockRegistry(BlockRegistry registry) {
+        this.blockRegistry = registry;
     }
 
     public void update(float deltaTime) {
-        
+        // Update cooldowns
+        if (blockBreakCooldown > 0) {
+            blockBreakCooldown -= deltaTime;
+        }
+        if (blockPlaceCooldown > 0) {
+            blockPlaceCooldown -= deltaTime;
+        }
+
         if (!onGround) {
             velocity.y += GRAVITY * deltaTime;
         }
 
-        
         Vector3f newPosition = new Vector3f(
                 position.x + velocity.x * deltaTime,
                 position.y + velocity.y * deltaTime,
                 position.z + velocity.z * deltaTime
         );
 
-        
         handleCollisions(newPosition, deltaTime);
 
-        
         velocity.x *= 0.85f;
         velocity.z *= 0.85f;
+
+        // Update what block player is looking at
+        updateLookingAt();
+    }
+
+    /**
+     * Update which block the player is currently looking at
+     */
+    private void updateLookingAt() {
+        if (camera != null) {
+            Vector3f cameraPos = getCameraPosition();
+            Vector3f cameraDirection = camera.getFront();
+            currentLookingAt = BlockInteraction.raycastToBlock(cameraPos, cameraDirection, chunkManager);
+        }
+    }
+
+    /**
+     * Try to break the block the player is looking at
+     */
+    public boolean tryBreakBlock() {
+        if (blockBreakCooldown > 0 || !currentLookingAt.hit || blockRegistry == null) {
+            return false;
+        }
+
+        int blockX = (int) currentLookingAt.blockPos.x;
+        int blockY = (int) currentLookingAt.blockPos.y;
+        int blockZ = (int) currentLookingAt.blockPos.z;
+
+        int blockId = chunkManager.getBlockAt(blockX, blockY, blockZ);
+        if (blockId == 0) return false; // Already air
+
+        // Get block name for inventory
+        String blockName = blockRegistry.getNameFromID(blockId);
+        if (blockName != null) {
+            // Add broken block to inventory
+            inventory.addItem(blockName, 1);
+        }
+
+        // Remove the block from world
+        chunkManager.setBlockAt(blockX, blockY, blockZ, 0);
+
+        // Set cooldown
+        blockBreakCooldown = BREAK_COOLDOWN_TIME;
+
+        return true;
+    }
+
+    /**
+     * Try to place a block adjacent to the one the player is looking at
+     */
+    public boolean tryPlaceBlock() {
+        if (blockPlaceCooldown > 0 || !currentLookingAt.hit || blockRegistry == null) {
+            return false;
+        }
+
+        String selectedBlock = inventory.getSelectedBlock();
+        if (!inventory.hasItem(selectedBlock, 1)) {
+            return false; // Not enough blocks
+        }
+
+        // Calculate placement position
+        Vector3f placePos = BlockInteraction.getPlacementPosition(
+                currentLookingAt.blockPos,
+                currentLookingAt.normal
+        );
+
+        int placeX = (int) placePos.x;
+        int placeY = (int) placePos.y;
+        int placeZ = (int) placePos.z;
+
+        // Check if placement position is valid (not inside player)
+        if (isPositionInsidePlayer(placeX, placeY, placeZ)) {
+            return false;
+        }
+
+        // Check if there's already a block there
+        if (chunkManager.getBlockAt(placeX, placeY, placeZ) != 0) {
+            return false;
+        }
+
+        // Get block ID for placement
+        int blockId = blockRegistry.getIDFromName(selectedBlock);
+        if (blockId == 0) return false;
+
+        // Place the block
+        chunkManager.setBlockAt(placeX, placeY, placeZ, blockId);
+
+        // Remove from inventory
+        inventory.removeItem(selectedBlock, 1);
+
+        // Set cooldown
+        blockPlaceCooldown = PLACE_COOLDOWN_TIME;
+
+        return true;
+    }
+
+    /**
+     * Check if a block position would intersect with the player
+     */
+    private boolean isPositionInsidePlayer(int blockX, int blockY, int blockZ) {
+        float playerMinX = position.x - PLAYER_WIDTH / 2;
+        float playerMaxX = position.x + PLAYER_WIDTH / 2;
+        float playerMinY = position.y;
+        float playerMaxY = position.y + PLAYER_HEIGHT;
+        float playerMinZ = position.z - PLAYER_WIDTH / 2;
+        float playerMaxZ = position.z + PLAYER_WIDTH / 2;
+
+        return blockX >= playerMinX && blockX < playerMaxX &&
+                blockY >= playerMinY && blockY < playerMaxY &&
+                blockZ >= playerMinZ && blockZ < playerMaxZ;
+    }
+
+    /**
+     * Switch to next block in hotbar
+     */
+    public void nextBlock() {
+        inventory.nextHotbarSlot();
+    }
+
+    /**
+     * Switch to previous block in hotbar
+     */
+    public void prevBlock() {
+        inventory.prevHotbarSlot();
+    }
+
+    /**
+     * Set specific hotbar slot
+     */
+    public void setHotbarSlot(int slot) {
+        inventory.setHotbarSlot(slot);
     }
 
     private void handleCollisions(Vector3f newPosition, float deltaTime) {
-        
         if (checkCollisionY(newPosition)) {
             if (velocity.y < 0) {
-                
                 onGround = true;
                 velocity.y = 0;
-                
                 int blockY = (int) Math.floor(newPosition.y);
                 newPosition.y = blockY + 1.0f;
             } else {
-                
                 velocity.y = 0;
             }
         } else {
             onGround = false;
         }
 
-        
         if (!checkCollisionX(newPosition)) {
             position.x = newPosition.x;
         } else {
             velocity.x = 0;
         }
 
-        
         if (!checkCollisionZ(newPosition)) {
             position.z = newPosition.z;
         } else {
             velocity.z = 0;
         }
 
-        
         position.y = newPosition.y;
     }
 
     private boolean checkCollisionY(Vector3f pos) {
-        
         int minX = (int) Math.floor(pos.x - PLAYER_WIDTH / 2);
         int maxX = (int) Math.floor(pos.x + PLAYER_WIDTH / 2);
         int minZ = (int) Math.floor(pos.z - PLAYER_WIDTH / 2);
         int maxZ = (int) Math.floor(pos.z + PLAYER_WIDTH / 2);
 
         if (velocity.y < 0) {
-            
             int blockY = (int) Math.floor(pos.y);
             for (int x = minX; x <= maxX; x++) {
                 for (int z = minZ; z <= maxZ; z++) {
@@ -106,7 +248,6 @@ public class Player {
                 }
             }
         } else {
-            
             int blockY = (int) Math.floor(pos.y + PLAYER_HEIGHT);
             for (int x = minX; x <= maxX; x++) {
                 for (int z = minZ; z <= maxZ; z++) {
@@ -161,15 +302,12 @@ public class Player {
 
     private boolean isBlockSolid(int x, int y, int z) {
         if (chunkManager == null) return false;
-        
         return chunkManager.getBlockAt(x, y, z) != 0;
     }
 
     public void setMovementInput(Vector3f inputDirection, float deltaTime) {
         if (camera == null) return;
-        
         float speed = sprinting ? SPRINT_SPEED : MOVE_SPEED;
-
         velocity.x = inputDirection.x * speed;
         velocity.z = inputDirection.z * speed;
     }
@@ -221,7 +359,7 @@ public class Player {
         this.sprinting = sprinting;
     }
 
-    
+    // Getters
     public Vector3f getPosition() { return new Vector3f(position); }
     public Vector3f getCameraPosition() {
         return new Vector3f(position.x, position.y + EYE_HEIGHT, position.z);
@@ -229,8 +367,9 @@ public class Player {
     public Vector3f getVelocity() { return new Vector3f(velocity); }
     public boolean isOnGround() { return onGround; }
     public boolean isSprinting() { return sprinting; }
+    public SimpleInventory getInventory() { return inventory; }
+    public BlockInteraction.RaycastResult getCurrentLookingAt() { return currentLookingAt; }
 
-    
     public void setPosition(Vector3f position) {
         this.position = new Vector3f(position);
     }

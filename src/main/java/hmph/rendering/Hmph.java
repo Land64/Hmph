@@ -1,11 +1,11 @@
 package hmph.rendering;
 import hmph.GUI.ImageRenderer;
 import hmph.GUI.TextRenderer;
+import hmph.GUI.GUIManager;
 import hmph.math.Vector3f;
 import hmph.rendering.shaders.ShaderProgram;
 import hmph.rendering.shapes.CubeRenderer;
 import hmph.rendering.world.ChunkBase;
-import hmph.rendering.world.ChunkManager;
 import hmph.rendering.world.ChunkManagerExtension;
 import hmph.rendering.world.Direction;
 import hmph.util.TextureManager;
@@ -14,7 +14,6 @@ import hmph.rendering.shaders.ShaderManager;
 import java.nio.*;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Logger;
 
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
@@ -27,10 +26,9 @@ import static org.lwjgl.opengl.GL11.glViewport;
 import static org.lwjgl.system.MemoryStack.*;
 import static org.lwjgl.system.MemoryUtil.*;
 import hmph.math.Matrix4f;
-import hmph.rendering.BlockRegistry;
 import hmph.player.Player;
 
-public class RenderWIndow {
+public class Hmph {
     private long windowBoi;
     private String title;
     private int width, height;
@@ -61,8 +59,12 @@ public class RenderWIndow {
     private SkyboxRenderer skyboxRenderer;
     private float gameTime = 0.0f;
     private Player player;
+    private GUIManager guiManager;
+    private float timeOfDay = 0.5f;
+    private boolean autoTime = true;
 
-    public RenderWIndow(String title, int width, int height, boolean vSync) {
+
+    public Hmph(String title, int width, int height, boolean vSync) {
         this.title = title;
         this.width = width;
         this.height = height;
@@ -70,11 +72,11 @@ public class RenderWIndow {
         this.resizeable = true;
         this.projectionMatrix = new Matrix4f();
         this.viewMatrix = new Matrix4f();
-        this.lastMouseX = width / 2.0;
-        this.lastMouseY = height / 2.0;
+        this.lastMouseX = width/2.0;
+        this.lastMouseY = height/2.0;
     }
 
-    public RenderWIndow(String title, int width, int height) { this(title, width, height, true); }
+    public Hmph(String title, int width, int height) { this(title, width, height, true); }
 
     public void init() {
         initGLFW();
@@ -107,7 +109,7 @@ public class RenderWIndow {
 
     private void createWindow() {
         windowBoi = glfwCreateWindow(width, height, title, NULL, NULL);
-        if (windowBoi == NULL) throw new RuntimeException("Failed to create window");
+        if (windowBoi==NULL) throw new RuntimeException("Failed to create window");
         glfwMakeContextCurrent(windowBoi);
     }
 
@@ -121,51 +123,53 @@ public class RenderWIndow {
     }
 
     private void loadInputs(float deltaTime) {
+        if (guiManager.isEnabled()) {
+            return;
+        }
         boolean isMoving = false;
         Vector3f inputDirection = new Vector3f(0, 0, 0);
         if (keys[GLFW_KEY_W]) {
             Vector3f front = camera.getFront();
-            inputDirection.x += front.x;
-            inputDirection.z += front.z;
+            inputDirection.x+=front.x;
+            inputDirection.z+=front.z;
             isMoving = true;
         }
         if (keys[GLFW_KEY_S]) {
             Vector3f front = camera.getFront();
-            inputDirection.x -= front.x;
-            inputDirection.z -= front.z;
+            inputDirection.x-=front.x;
+            inputDirection.z-=front.z;
             isMoving = true;
         }
         if (keys[GLFW_KEY_A]) {
             Vector3f right = camera.getRight();
-            inputDirection.x -= right.x;
-            inputDirection.z -= right.z;
+            inputDirection.x-=right.x;
+            inputDirection.z-=right.z;
             isMoving = true;
         }
         if (keys[GLFW_KEY_D]) {
             Vector3f right = camera.getRight();
-            inputDirection.x += right.x;
-            inputDirection.z += right.z;
+            inputDirection.x+=right.x;
+            inputDirection.z+=right.z;
             isMoving = true;
         }
 
         if (isMoving) {
-            float length = (float) Math.sqrt(inputDirection.x * inputDirection.x + inputDirection.z * inputDirection.z);
-            if (length > 0) {
-                inputDirection.x /= length;
-                inputDirection.z /= length;
+            float length = (float) Math.sqrt(inputDirection.x*inputDirection.x+inputDirection.z*inputDirection.z);
+            if (length>0) {
+                inputDirection.x/=length;
+                inputDirection.z/=length;
             }
             player.setMovementInput(inputDirection, deltaTime);
         } else {
             player.setMovementInput(new Vector3f(0, 0, 0), deltaTime);
         }
-        
-        // Handle other actions
-        player.setSprinting(keys[GLFW_KEY_LEFT_SHIFT] || keys[GLFW_KEY_LEFT_CONTROL]);
-        
+
+        player.setSprinting(keys[GLFW_KEY_LEFT_SHIFT]||keys[GLFW_KEY_LEFT_CONTROL]);
+
         if (keys[GLFW_KEY_SPACE]) {
             player.jump();
         }
-        
+
         camera.setPosition(player.getCameraPosition());
     }
 
@@ -192,10 +196,10 @@ public class RenderWIndow {
             shaderManager = new ShaderManager();
             shaderManager.loadDefaultShaders();
             ShaderProgram textShader = shaderManager.getShader("text");
-            if (textShader == null) throw new RuntimeException("Failed to load text shader");
+            if (textShader==null) throw new RuntimeException("Failed to load text shader");
             textRenderer = new TextRenderer("assets/font.otf", 24f, textShader, (float)width, (float)height);
             ShaderProgram texturedShader = shaderManager.getShader("textured");
-            if (texturedShader == null) throw new RuntimeException("Failed to load textured shader");
+            if (texturedShader==null) throw new RuntimeException("Failed to load textured shader");
             imageRenderer = new ImageRenderer("assets/images/gui/button.png", texturedShader, (float)width, (float)height);
             cubeRenderer = new CubeRenderer(shaderManager);
 
@@ -204,6 +208,9 @@ public class RenderWIndow {
             textureManager.loadTexture("grass", "assets/blocks/grass_block.png");
             textureManager.loadTexture("missing", "assets/blocks/missing_texture.png");
             textureManager.loadTexture("stone", "assets/blocks/stone_block.png");
+
+            guiManager = new GUIManager(this);
+            guiManager.initialize();
 
             skyboxRenderer = new SkyboxRenderer(shaderManager);
 
@@ -218,9 +225,8 @@ public class RenderWIndow {
         camera.setPosition(0, 30, 0);
         camera.lookAt(new Vector3f(8, 0, 8));
 
-        //LoggerHelper.betterPrint("Checking block registry:", LoggerHelper.LogType.RENDERING);
         String testBlock = registry.getNameFromID(1);
-        if (testBlock == null) {
+        if (testBlock==null) {
             System.err.println("WARNING: No block found with ID 1. Registry might be empty!");
             System.err.println("Registering a default 'stone' block for testing...");
             Map<Direction, String> defaultTextures = new java.util.EnumMap<>(hmph.rendering.world.Direction.class);
@@ -229,16 +235,15 @@ public class RenderWIndow {
             }
             registry.registerBlock("stone", "solid", defaultTextures);
             testBlock = registry.getNameFromID(1);
-            //LoggerHelper.betterPrint("Registered default block: " + testBlock, LoggerHelper.LogType.RENDERING);
-        } else {
-            //LoggerHelper.betterPrint("Found block with ID 1: " + testBlock, LoggerHelper.LogType.RENDERING);
         }
         chunkManager = new ChunkManagerExtension(registry, renderDistance);
         chunkManager.updateChunks(new Vector3f(-999, 0, -999));
         player = new Player(new Vector3f(0, 70, 0), chunkManager, camera);
+        player.setBlockRegistry(registry);
         chunkManager.updateChunks(player.getPosition());
 
         LoggerHelper.betterPrint("ChunkManager initialized with render distance: " + renderDistance, LoggerHelper.LogType.RENDERING);
+
     }
 
     private void centerWindow() {
@@ -247,46 +252,67 @@ public class RenderWIndow {
             IntBuffer pHeight = stack.mallocInt(1);
             glfwGetWindowSize(windowBoi, pWidth, pHeight);
             GLFWVidMode vid = glfwGetVideoMode(glfwGetPrimaryMonitor());
-            int xpos = (vid.width() - pWidth.get(0)) / 2;
-            int ypos = (vid.height() - pHeight.get(0)) / 2;
+            int xpos = (vid.width()-pWidth.get(0))/2;
+            int ypos = (vid.height()-pHeight.get(0))/2;
             glfwSetWindowPos(windowBoi, xpos, ypos);
         }
     }
 
     private void setupInputCallbacks() {
         keyCB = glfwSetKeyCallback(windowBoi, (window, key, scancode, action, mods) -> {
-            if (key >= 0 && key < keys.length) {
-                keys[key] = (action == GLFW_PRESS || action == GLFW_REPEAT);
+            if (key>=0&&key<keys.length) {
+                keys[key] = (action==GLFW_PRESS||action==GLFW_REPEAT);
             }
-            if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) { 
-                mouseCaptured = !mouseCaptured; 
-                glfwSetInputMode(windowBoi, GLFW_CURSOR, mouseCaptured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL); 
+            if (key==GLFW_KEY_ESCAPE&&action==GLFW_PRESS) {
+                if (guiManager.isEnabled()) {
+                    guiManager.setEnabled(false);
+                    mouseCaptured = true;
+                    glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                } else {
+                    guiManager.setEnabled(true);
+                    mouseCaptured = false;
+                    glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                }
             }
         });
+
+        mouseButtonCB = glfwSetMouseButtonCallback(windowBoi, (window, button, action, mods) -> {
+            if (!mouseCaptured) return;
+
+            if (action == GLFW_PRESS) {
+                if (button == GLFW_MOUSE_BUTTON_LEFT) {
+                    player.tryBreakBlock();
+                } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+                    player.tryPlaceBlock();
+                }
+            }
+        });
+
         curosrPosCB = glfwSetCursorPosCallback(windowBoi, (window, xpos, ypos) -> {
-            if (!mouseCaptured)
-            {
-                LoggerHelper.betterPrint("Probably in a menu!", LoggerHelper.LogType.DEBUG);
-                return;
-            }
+            guiManager.update(xpos, ypos, glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)==GLFW_PRESS);
 
+            if (!guiManager.isEnabled()&&mouseCaptured) {
+                if (firstMouse) {
+                    lastMouseX = xpos;
+                    lastMouseY = ypos;
+                    firstMouse = false;
+                }
 
-            if (firstMouse) {
-                lastMouseX = xpos;
-                lastMouseY = ypos;
-                firstMouse = false;
-            }
-
-            if (mouseCaptured) {
-                double xOffset = xpos - lastMouseX;
-                double yOffset = lastMouseY - ypos;
+                double xOffset = xpos-lastMouseX;
+                double yOffset = lastMouseY-ypos;
                 camera.processMouseMovement((float)xOffset, (float)yOffset, true);
             }
 
             lastMouseX = xpos;
             lastMouseY = ypos;
         });
-        glfwSetScrollCallback(windowBoi, (window, xoffset, yoffset) -> camera.processMouseScroll((float)yoffset));
+
+        glfwSetScrollCallback(windowBoi, (window, xoffset, yoffset) -> {
+            if (!guiManager.isEnabled()) {
+                camera.processMouseScroll((float)yoffset);
+            }
+        });
+
         setupWindowSizeCallback();
     }
 
@@ -294,34 +320,29 @@ public class RenderWIndow {
         windowSizeCB = glfwSetWindowSizeCallback(windowBoi, (window, newWidth, newHeight) -> {
             this.width = newWidth;
             this.height = newHeight;
-            
-            // Update OpenGL viewport
+
             glViewport(0, 0, newWidth, newHeight);
-            
-            // Update GUI renderers if they exist
-            if (textRenderer != null) {
+
+            if (guiManager!=null) {
+                guiManager.onWindowResize();
+            }
+
+            if (textRenderer!=null) {
                 try {
-                    // Try to update text renderer dimensions if method exists
-                    textRenderer.getClass().getMethod("updateDimensions", float.class, float.class)
-                        .invoke(textRenderer, (float)newWidth, (float)newHeight);
+                    textRenderer.getClass().getMethod("updateDimensions", float.class, float.class).invoke(textRenderer, (float)newWidth, (float)newHeight);
                 } catch (Exception e) {
-                    // Method doesn't exist yet, that's okay
                 }
             }
-            if (imageRenderer != null) {
+            if (imageRenderer!=null) {
                 try {
-                    // Try to update image renderer dimensions if method exists
-                    imageRenderer.getClass().getMethod("updateDimensions", float.class, float.class)
-                        .invoke(imageRenderer, (float)newWidth, (float)newHeight);
+                    imageRenderer.getClass().getMethod("updateDimensions", float.class, float.class).invoke(imageRenderer, (float)newWidth, (float)newHeight);
                 } catch (Exception e) {
-                    // Method doesn't exist yet, that's okay
                 }
             }
-            
+
             LoggerHelper.betterPrint("Window resized to: " + newWidth + "x" + newHeight, LoggerHelper.LogType.INFO);
         });
     }
-
 
     private void setupWindowClose() {
         windowCloseCB = glfwSetWindowCloseCallback(windowBoi, window -> { LoggerHelper.betterPrint("Running Cleanup", LoggerHelper.LogType.INFO); cleanup(); });
@@ -333,13 +354,22 @@ public class RenderWIndow {
         glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         setupShaders();
         checkGLError("after initial setup");
+
         double lastTime = glfwGetTime();
+        float dayLengthInSeconds = 60.0f;
+        float daySpeed = 24.0f / dayLengthInSeconds;
+
         while (!glfwWindowShouldClose(windowBoi)) {
             double currentTime = glfwGetTime();
             float deltaTime = (float)(currentTime - lastTime);
             lastTime = currentTime;
 
-            gameTime += deltaTime * 0.1f;
+            if (autoTime) {
+                gameTime += deltaTime;
+                timeOfDay = (gameTime % dayLengthInSeconds) / dayLengthInSeconds;
+            }
+
+
             player.update(deltaTime);
             loadInputs(deltaTime);
             renderScene();
@@ -347,56 +377,54 @@ public class RenderWIndow {
             glfwSwapBuffers(windowBoi);
             glfwPollEvents();
         }
+
         LoggerHelper.betterPrint("Overlay & Chunk System Created nicely", LoggerHelper.LogType.RENDERING);
     }
+
 
     private void setupShaders() {
         checkGLError("before shader setup");
         ShaderProgram chunkShader = shaderManager.getShader("3d");
         ShaderProgram imageShader = imageRenderer.getShader();
         ShaderProgram textShader = textRenderer.getShader();
-        if (chunkShader == null) {
+        if (chunkShader==null) {
             System.err.println("3D shader not found!");
         }
-        if (imageShader == null) {
+        if (imageShader==null) {
             System.err.println("Image shader not found!");
         }
-        if (textShader == null) {
+        if (textShader==null) {
             System.err.println("Text shader not found!");
         }
         checkGLError("after shader setup");
     }
 
     private void renderScene() {
-        
+
         glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
         if (skyboxRenderer != null) {
             ShaderProgram skyboxShader = shaderManager.getShader("skybox");
             if (skyboxShader != null) {
                 skyboxShader.bind();
-                skyboxShader.setUniform("horizonColor", new Vector3f(0.8f, 0.9f, 1.0f));
-                skyboxShader.setUniform("zenithColor", new Vector3f(0.3f, 0.5f, 0.9f));
-                skyboxShader.setUniform("fogColor", new Vector3f(0.7f, 0.8f, 0.9f));
                 glDepthMask(false);
-                skyboxRenderer.render(camera, width, height, gameTime);
+                skyboxRenderer.renderWithTime(camera, width, height, timeOfDay);
                 glDepthMask(true);
                 skyboxShader.unbind();
             }
         }
 
 
-
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_NONE);
-        while (glGetError() != GL_NO_ERROR);
+        while (glGetError()!=GL_NO_ERROR);
         try {
             renderChunk();
             renderGUI();
             int error = glGetError();
-            if (error != GL_NO_ERROR) {
+            if (error!=GL_NO_ERROR) {
                 LoggerHelper.betterPrint("OpenGL error after rendering: " + error, LoggerHelper.LogType.ERROR);
             }
         } catch (Exception e) {
@@ -405,32 +433,45 @@ public class RenderWIndow {
         }
     }
 
+
     private void renderChunk() {
         ShaderProgram chunkShader = shaderManager.getShader("3d");
         if (chunkShader == null) return;
+
         chunkManager.updateChunks(player.getPosition());
         Map<Long, ChunkBase> chunks = chunkManager.getLoadedChunks();
 
         if (chunks.isEmpty()) return;
+
+        LightingSystem.LightData lighting = LightingSystem.doLighting(timeOfDay);
+
         int currentProgram = glGetInteger(GL_CURRENT_PROGRAM);
         boolean depthTest = glIsEnabled(GL_DEPTH_TEST);
         boolean cullFace = glIsEnabled(GL_CULL_FACE);
+
         try {
             glEnable(GL_DEPTH_TEST);
             glEnable(GL_CULL_FACE);
             glCullFace(GL_FRONT);
+
             chunkShader.bind();
+
             Matrix4f viewMatrix = camera.getViewMatrix();
-            Matrix4f projectionMatrix = camera.getProjectionMatrix((float) width / height, 0.1f, 100.0f);
+            Matrix4f projectionMatrix = camera.getProjectionMatrix((float) width/height, 0.1f, 100.0f);
+
             chunkShader.setUniform("view", viewMatrix);
             chunkShader.setUniform("projection", projectionMatrix);
+
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, textureManager.getTexture("grass"));
             chunkShader.setUniform("texture1", 0);
             chunkShader.setUniform("color", new Vector3f(1.0f, 1.0f, 1.0f));
-            chunkShader.setUniform("lightDirection", new Vector3f(-0.5f, -1.0f, -0.3f));
-            chunkShader.setUniform("lightColor", new Vector3f(1.0f, 1.0f, 0.9f));
-            chunkShader.setUniform("ambientStrength", 0.3f);
+
+            // woah hey lighting for the day stuff
+            chunkShader.setUniform("lightDirection", lighting.direction);
+            chunkShader.setUniform("lightColor", lighting.color);
+            chunkShader.setUniform("ambientStrength", lighting.ambientStrength);
+            chunkShader.setUniform("ambientColor", lighting.ambientColor);
 
             for (ChunkBase chunk : chunks.values()) {
                 if (!chunk.isMeshBuilt()) continue;
@@ -438,11 +479,14 @@ public class RenderWIndow {
                 if (vao == 0) continue;
                 int indexCount = chunk.getIndexCount();
                 if (indexCount <= 0) continue;
+
                 Matrix4f modelMatrix = new Matrix4f().identity().translate(chunk.getPosition());
                 chunkShader.setUniform("model", modelMatrix);
+
                 glBindVertexArray(vao);
                 glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
             }
+
             glBindVertexArray(0);
 
         } catch (Exception e) {
@@ -454,8 +498,6 @@ public class RenderWIndow {
             if (currentProgram != 0) glUseProgram(currentProgram);
             else chunkShader.unbind();
         }
-
-
     }
 
     private String getOpenGLErrorString(int error) {
@@ -481,7 +523,7 @@ public class RenderWIndow {
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
-            while (glGetError() != GL_NO_ERROR);
+            while (glGetError()!=GL_NO_ERROR);
 
             String currentDim = (chunkManager instanceof ChunkManagerExtension) ? ((ChunkManagerExtension) chunkManager).getCurrentDimension() : "overworld";
 
@@ -490,7 +532,6 @@ public class RenderWIndow {
                     currentDim, chunkManager.getLoadedChunkCount());
             textRenderer.renderText(info, 10, 40);
 
-
             Map<Long, ChunkBase> chunks = chunkManager.getLoadedChunks();
             if (!chunks.isEmpty()) {
                 ChunkBase firstChunk = chunks.values().iterator().next();
@@ -498,11 +539,15 @@ public class RenderWIndow {
                 textRenderer.renderText(chunkInfo, 10, 80);
             }
 
-            float scaledWidth = 128 * 3, scaledHeight = 32 * 3;
-            float centerX = (width / 2.0f) - (scaledWidth / 2.0f);
-            float centerY = (height / 2.0f) - (scaledHeight / 2.0f);
+            if (guiManager!=null) {
+                guiManager.render();
+            }
+
+            float scaledWidth = 128*3, scaledHeight = 32*3;
+            float centerX = (width/2.0f)-(scaledWidth/2.0f);
+            float centerY = (height/2.0f)-(scaledHeight/2.0f);
             int error = glGetError();
-            if (error != GL_NO_ERROR) {
+            if (error!=GL_NO_ERROR) {
                 LoggerHelper.betterPrint("OpenGL error during GUI rendering: " + error, LoggerHelper.LogType.ERROR);
             }
         } catch (Exception e) {
@@ -510,58 +555,47 @@ public class RenderWIndow {
             e.printStackTrace();
         } finally {
             glBindTexture(GL_TEXTURE_2D, 0);
-            if (currentProgram != 0) {
+            if (currentProgram!=0) {
                 glUseProgram(currentProgram);
             }
             if (depthTest) glEnable(GL_DEPTH_TEST);
             if (!blend) glDisable(GL_BLEND);
             if (cullFace) glEnable(GL_CULL_FACE);
-            while (glGetError() != GL_NO_ERROR);
+            while (glGetError()!=GL_NO_ERROR);
         }
     }
 
     private void checkGLError(String operation) {
         int error = glGetError();
-        if (error != GL_NO_ERROR) {
+        if (error!=GL_NO_ERROR) {
             String errorMsg = "OpenGL error during " + operation + ": " + error + " - ";
             switch (error) {
-                case GL_INVALID_ENUM: errorMsg += "Invalid enum"; break;
-                case GL_INVALID_VALUE: errorMsg += "Invalid value"; break;
-                case GL_INVALID_OPERATION: errorMsg += "Invalid operation"; break;
-                case GL_OUT_OF_MEMORY: errorMsg += "Out of memory"; break;
-                default: errorMsg += "Unknown error";
+                case GL_INVALID_ENUM: errorMsg+="Invalid enum"; break;
+                case GL_INVALID_VALUE: errorMsg+="Invalid value"; break;
+                case GL_INVALID_OPERATION: errorMsg+="Invalid operation"; break;
+                case GL_OUT_OF_MEMORY: errorMsg+="Out of memory"; break;
+                default: errorMsg+="Unknown error";
             }
             LoggerHelper.betterPrint(errorMsg, LoggerHelper.LogType.ERROR);
         }
     }
 
-    /*
-    private void processInput(float deltaTime) {
-        if (keys[GLFW_KEY_W]) camera.moveForward(deltaTime);
-        if (keys[GLFW_KEY_S]) camera.moveBackward(deltaTime);
-        if (keys[GLFW_KEY_A]) camera.moveLeft(deltaTime);
-        if (keys[GLFW_KEY_D]) camera.moveRight(deltaTime);
-        if (keys[GLFW_KEY_SPACE]) camera.moveUp(deltaTime);
-        if (keys[GLFW_KEY_LEFT_SHIFT]) camera.moveDown(deltaTime);
-        camera.setMovementSpeed(keys[GLFW_KEY_LEFT_CONTROL] ? 5.0f : 2.5f);
-    }
-     */
-
     private void cleanup() {
-        if (cubeRenderer != null) cubeRenderer.cleanup();
-        if (shaderManager != null) shaderManager.cleanup();
-        if (keyCB != null) keyCB.free();
-        if (windowSizeCB != null) windowSizeCB.free();
-        if (mouseButtonCB != null) mouseButtonCB.free();
-        if (chunkManager != null) chunkManager.cleanup();
-        if (curosrPosCB != null) curosrPosCB.free();
-        if (textRenderer != null) textRenderer.cleanup();
-        if (chunk != null) chunk.cleanup();
-        if (textureManager != null) textureManager.cleanup();
+        if (guiManager!=null) guiManager.cleanup();
+        if (cubeRenderer!=null) cubeRenderer.cleanup();
+        if (shaderManager!=null) shaderManager.cleanup();
+        if (keyCB!=null) keyCB.free();
+        if (windowSizeCB!=null) windowSizeCB.free();
+        if (mouseButtonCB!=null) mouseButtonCB.free();
+        if (chunkManager!=null) chunkManager.cleanup();
+        if (curosrPosCB!=null) curosrPosCB.free();
+        if (textRenderer!=null) textRenderer.cleanup();
+        if (chunk!=null) chunk.cleanup();
+        if (textureManager!=null) textureManager.cleanup();
         glfwDestroyWindow(windowBoi);
         glfwTerminate();
         GLFWErrorCallback err = glfwSetErrorCallback(null);
-        if (err != null) err.free();
+        if (err!=null) err.free();
         LoggerHelper.betterPrint("Cleanup was amazing", LoggerHelper.LogType.INFO);
     }
 

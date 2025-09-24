@@ -1,8 +1,9 @@
-import hmph.rendering.RenderWIndow;
+import hmph.rendering.Hmph;
 
 public class Main {
     public static void main(String[] args) {
-        RenderWIndow window = new RenderWIndow("Hmph", 1024, 720, true);
+        Hmph window = new Hmph("Hmph", 1024, 720, true);
         window.init();
     }
+
 }

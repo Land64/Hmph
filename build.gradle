@@ -6,17 +6,32 @@ plugins {
 group = 'org.hmph2'
 version = '1.0-SNAPSHOT'
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_22
+    targetCompatibility = JavaVersion.VERSION_22
+}
+
+
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    // Local ImGui JARs
     implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    implementation 'org.lwjgl:lwjgl:3.3.3'
+    implementation 'org.lwjgl:lwjgl-glfw:3.3.3'
+    implementation 'org.lwjgl:lwjgl-opengl:3.3.3'
+    runtimeOnly 'org.lwjgl:lwjgl:3.3.3:natives-windows'
+    runtimeOnly 'org.lwjgl:lwjgl-glfw:3.3.3:natives-windows'
+    runtimeOnly 'org.lwjgl:lwjgl-opengl:3.3.3:natives-windows'
 
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
+
 
 sourceSets {
     main {
@@ -25,7 +40,6 @@ sourceSets {
         }
     }
 }
-
 
 application {
     mainClass = "Main"
