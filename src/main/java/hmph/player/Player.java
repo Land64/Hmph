@@ -42,13 +42,11 @@ public class Player {
         this.currentLookingAt = new BlockInteraction.RaycastResult();
     }
 
-    // Add a setter for BlockRegistry (called after player creation)
     public void setBlockRegistry(BlockRegistry registry) {
         this.blockRegistry = registry;
     }
 
     public void update(float deltaTime) {
-        // Update cooldowns
         if (blockBreakCooldown > 0) {
             blockBreakCooldown -= deltaTime;
         }
@@ -71,7 +69,6 @@ public class Player {
         velocity.x *= 0.85f;
         velocity.z *= 0.85f;
 
-        // Update what block player is looking at
         updateLookingAt();
     }
 
@@ -99,19 +96,14 @@ public class Player {
         int blockZ = (int) currentLookingAt.blockPos.z;
 
         int blockId = chunkManager.getBlockAt(blockX, blockY, blockZ);
-        if (blockId == 0) return false; // Already air
+        if (blockId == 0) return false;
 
-        // Get block name for inventory
         String blockName = blockRegistry.getNameFromID(blockId);
         if (blockName != null) {
-            // Add broken block to inventory
             inventory.addItem(blockName, 1);
         }
 
-        // Remove the block from world
         chunkManager.setBlockAt(blockX, blockY, blockZ, 0);
-
-        // Set cooldown
         blockBreakCooldown = BREAK_COOLDOWN_TIME;
 
         return true;
@@ -127,10 +119,9 @@ public class Player {
 
         String selectedBlock = inventory.getSelectedBlock();
         if (!inventory.hasItem(selectedBlock, 1)) {
-            return false; // Not enough blocks
+            return false;
         }
 
-        // Calculate placement position
         Vector3f placePos = BlockInteraction.getPlacementPosition(
                 currentLookingAt.blockPos,
                 currentLookingAt.normal
@@ -140,27 +131,19 @@ public class Player {
         int placeY = (int) placePos.y;
         int placeZ = (int) placePos.z;
 
-        // Check if placement position is valid (not inside player)
         if (isPositionInsidePlayer(placeX, placeY, placeZ)) {
             return false;
         }
 
-        // Check if there's already a block there
         if (chunkManager.getBlockAt(placeX, placeY, placeZ) != 0) {
             return false;
         }
 
-        // Get block ID for placement
         int blockId = blockRegistry.getIDFromName(selectedBlock);
         if (blockId == 0) return false;
 
-        // Place the block
         chunkManager.setBlockAt(placeX, placeY, placeZ, blockId);
-
-        // Remove from inventory
         inventory.removeItem(selectedBlock, 1);
-
-        // Set cooldown
         blockPlaceCooldown = PLACE_COOLDOWN_TIME;
 
         return true;
@@ -177,9 +160,7 @@ public class Player {
         float playerMinZ = position.z - PLAYER_WIDTH / 2;
         float playerMaxZ = position.z + PLAYER_WIDTH / 2;
 
-        return blockX >= playerMinX && blockX < playerMaxX &&
-                blockY >= playerMinY && blockY < playerMaxY &&
-                blockZ >= playerMinZ && blockZ < playerMaxZ;
+        return blockX >= playerMinX && blockX < playerMaxX &&  blockY >= playerMinY && blockY < playerMaxY && blockZ >= playerMinZ && blockZ < playerMaxZ;
     }
 
     /**
@@ -281,9 +262,7 @@ public class Player {
     }
 
     private boolean checkCollisionZ(Vector3f pos) {
-        int blockZ = velocity.z > 0 ?
-                (int) Math.floor(pos.z + PLAYER_WIDTH / 2) :
-                (int) Math.floor(pos.z - PLAYER_WIDTH / 2);
+        int blockZ = velocity.z > 0 ?  (int) Math.floor(pos.z + PLAYER_WIDTH / 2) : (int) Math.floor(pos.z - PLAYER_WIDTH / 2);
 
         int minY = (int) Math.floor(pos.y);
         int maxY = (int) Math.floor(pos.y + PLAYER_HEIGHT);
@@ -316,7 +295,6 @@ public class Player {
         if (camera == null) return;
         float speed = sprinting ? SPRINT_SPEED : MOVE_SPEED;
         Vector3f front = camera.getFront();
-        // Only use horizontal movement (ignore Y component)
         velocity.x = front.x * speed;
         velocity.z = front.z * speed;
     }
@@ -325,7 +303,6 @@ public class Player {
         if (camera == null) return;
         float speed = sprinting ? SPRINT_SPEED : MOVE_SPEED;
         Vector3f front = camera.getFront();
-        // Only use horizontal movement (ignore Y component)
         velocity.x = -front.x * speed;
         velocity.z = -front.z * speed;
     }
@@ -334,7 +311,6 @@ public class Player {
         if (camera == null) return;
         float speed = sprinting ? SPRINT_SPEED : MOVE_SPEED;
         Vector3f right = camera.getRight();
-        // Only use horizontal movement (ignore Y component)
         velocity.x = -right.x * speed;
         velocity.z = -right.z * speed;
     }
@@ -343,7 +319,6 @@ public class Player {
         if (camera == null) return;
         float speed = sprinting ? SPRINT_SPEED : MOVE_SPEED;
         Vector3f right = camera.getRight();
-        // Only use horizontal movement (ignore Y component)
         velocity.x = right.x * speed;
         velocity.z = right.z * speed;
     }

@@ -15,8 +15,6 @@ public class Ray {
 
     /**
      * Creates a new ray with the given origin and direction (in Vector3Fs)
-     * @param origin
-     * @param direction
      */
 
     public Ray(Vector3f origin, Vector3f direction) {
@@ -26,12 +24,6 @@ public class Ray {
 
     /**
      * Creates a new ray with the given origin and direction (in given XYZ floats)
-     * @param oX
-     * @param oY
-     * @param oZ
-     * @param dirX
-     * @param dirY
-     * @param dirZ
      */
 
     public Ray(float oX, float oY, float oZ, float dirX, float dirY, float dirZ) {

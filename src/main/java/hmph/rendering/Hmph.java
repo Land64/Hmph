@@ -277,7 +277,9 @@ public class Hmph {
         });
 
         mouseButtonCB = glfwSetMouseButtonCallback(windowBoi, (window, button, action, mods) -> {
-            if (!mouseCaptured) return;
+            if (!mouseCaptured) {
+                return;
+            }
 
             if (action == GLFW_PRESS) {
                 if (button == GLFW_MOUSE_BUTTON_LEFT) {

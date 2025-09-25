@@ -25,7 +25,7 @@ public class VoxelTraversal {
 
         if (ray.direction.x < 0) {
             sx = -1;
-            tMaxX = (ray.origin.x + 1.0f - x) *  (-1.0f / ray.direction.x);
+            tMaxX = (x - ray.origin.x) / ray.direction.x;
         } else {
             sx = 1;
             tMaxX = (x + 1.0f - ray.origin.x) / ray.direction.x;
@@ -33,15 +33,15 @@ public class VoxelTraversal {
 
         if (ray.direction.y < 0) {
             sy = -1;
-            tMaxY = (ray.origin.y + 1.0f - y) *  (-1.0f / ray.direction.y);
+            tMaxY = (y - ray.origin.y) / ray.direction.y;
         } else {
             sy = 1;
-            tMaxX = (y + 1.0f - ray.origin.y) / ray.direction.y;
+            tMaxY = (y + 1.0f - ray.origin.y) / ray.direction.y;
         }
 
         if (ray.direction.z < 0) {
             sz = -1;
-            tMaxZ = (ray.origin.y + 1.0f - y) *  (-1.0f / ray.direction.y);
+            tMaxZ = (z - ray.origin.z) / ray.direction.z;
         } else {
             sz = 1;
             tMaxZ = (z + 1.0f - ray.origin.z) / ray.direction.z;
@@ -71,24 +71,23 @@ public class VoxelTraversal {
                 distance = tMaxZ;
                 tMaxZ += tDeltaZ;
                 z += sz;
-                normal.set(-sz, 0, 0);
+                normal.set(0, 0, -sz);
             }
         } else {
             if (tMaxY < tMaxZ) {
                 distance = tMaxY;
                 tMaxY += tDeltaY;
                 y += sy;
-                normal.set(-sy, 0, 0);
+                normal.set(0, -sy, 0);
             } else {
                 distance = tMaxZ;
                 tMaxZ += tDeltaZ;
                 z += sz;
-                normal.set(-sz, 0, 0);
+                normal.set(0, 0, -sz);
             }
         }
 
         return distance;
-
     }
 
     /**

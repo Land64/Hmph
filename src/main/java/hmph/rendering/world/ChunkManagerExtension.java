@@ -70,7 +70,6 @@ public class ChunkManagerExtension extends ChunkManager {
             int localZ = worldZ - (chunkZ * ChunkBase.SIZE_Z);
 
             if (localX >= 0 && localX < ChunkBase.SIZE_X && localZ >= 0 && localZ < ChunkBase.SIZE_Z && worldY >= 0 && worldY < ChunkBase.SIZE_Y) {
-
                 chunk.setBlock(localX, worldY, localZ, blockId);
                 chunk.rebuildMesh();
                 rebuildNeighborChunksIfNeeded(worldX, worldY, worldZ, chunkX, chunkZ);

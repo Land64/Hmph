@@ -17,8 +17,6 @@ public class LightingSystem {
         }
     }
 
-    // Since my teacher really wants me to use comments i will from now on.
-
     /**
      * Dynamic lighting system baised on given time of day
      * @param timeOfDay 0.0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset, 1.0 = midnight

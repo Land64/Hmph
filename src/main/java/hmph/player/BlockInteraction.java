@@ -6,15 +6,14 @@ import hmph.math.Raycasting.Ray;
 import hmph.rendering.world.ChunkManager;
 
 public class BlockInteraction {
-    public static final float max_reach = 0.5f;
+    public static final float max_reach = 20f;
 
     public static class RaycastResult {
         public boolean hit;
-        public Vector3f blockPos;
-        public Vector3f normal;
+        public Vector3f blockPos = new Vector3f();
+        public Vector3f normal = new Vector3f();
         public float distance;
     }
-
 
     /**
      * Cast a ray from the camera's position using the Voxel-Class
@@ -26,24 +25,31 @@ public class BlockInteraction {
         Ray ray = new Ray(origin, direction);
         VoxelTraversal travisscott = new VoxelTraversal(ray);
 
-        float distance2 = 0.5f;
-        Vector3f previousVoxel = new Vector3f(travisscott.getCurrentVoxel());
+        float distance = 0.0f;
 
-        while (distance2 < max_reach) {
-            int blockId = manager.getBlockAt(travisscott.x, travisscott.y, travisscott.z);
+        int blockId = manager.getBlockAt(travisscott.x, travisscott.y, travisscott.z);
+        if (blockId != 0) {
+            result.hit = true;
+            result.blockPos.set(travisscott.x, travisscott.y, travisscott.z);
+            result.normal.set(0, 1, 0);
+            result.distance = 0.0f;
+            return result;
+        }
 
+        while (distance < max_reach) {
+            float stepDist = travisscott.step();
+            distance += stepDist;
+
+            blockId = manager.getBlockAt(travisscott.x, travisscott.y, travisscott.z);
             if (blockId != 0) {
                 result.hit = true;
                 result.blockPos.set(travisscott.x, travisscott.y, travisscott.z);
                 result.normal.set(travisscott.getFaceNormal());
-                result.distance = distance2;
+                result.distance = distance;
+                return result;
             }
-
-            previousVoxel.set(travisscott.getCurrentVoxel());
-
-            float stepDist = travisscott.step();
-            distance2 = stepDist;
         }
+
         return result;
     }
 
