@@ -46,7 +46,7 @@ public class TextureManager {
     }
 
 
-    public int loadTexture(String name, String path) {
+    public int loadTexture(String name, String resourcePath) {
         if (textures.containsKey(name)) {
             return textures.get(name);
         }
@@ -56,9 +56,9 @@ public class TextureManager {
             IntBuffer height = stack.mallocInt(1);
             IntBuffer channels = stack.mallocInt(1);
 
-            InputStream inputStream = getClass().getClassLoader().getResourceAsStream(path);
+            InputStream inputStream = getClass().getClassLoader().getResourceAsStream(resourcePath);
             if (inputStream == null) {
-                System.err.println("Could not find texture: " + path);
+                System.err.println("Could not find texture resource: " + resourcePath);
                 textures.put(name, defaultTexture);
                 return defaultTexture;
             }
@@ -70,7 +70,7 @@ public class TextureManager {
 
             ByteBuffer image = STBImage.stbi_load_from_memory(imageBuffer, width, height, channels, 4);
             if (image == null) {
-                System.err.println("Failed to load texture: " + path + " - " + STBImage.stbi_failure_reason());
+                System.err.println("Failed to load texture: " + resourcePath + " - " + STBImage.stbi_failure_reason());
                 textures.put(name, defaultTexture);
                 return defaultTexture;
             }
@@ -94,7 +94,7 @@ public class TextureManager {
             return textureId;
 
         } catch (Exception e) {
-            System.err.println("Error loading texture " + path + ": " + e.getMessage());
+            System.err.println("Error loading texture " + resourcePath + ": " + e.getMessage());
             e.printStackTrace();
             textures.put(name, defaultTexture);
             return defaultTexture;

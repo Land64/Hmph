@@ -1,7 +1,8 @@
 package hmph.rendering;
 import hmph.GUI.ImageRenderer;
-import hmph.GUI.TextRenderer;
+import hmph.GUI.text.*;
 import hmph.GUI.GUIManager;
+import hmph.GUI.MainMenuManager;
 import hmph.math.Vector3f;
 import hmph.rendering.shaders.ShaderProgram;
 import hmph.rendering.shapes.CubeRenderer;
@@ -11,9 +12,18 @@ import hmph.rendering.world.Direction;
 import hmph.util.TextureManager;
 import hmph.util.debug.LoggerHelper;
 import hmph.rendering.shaders.ShaderManager;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.*;
-import java.util.HashMap;
-import java.util.Map;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
@@ -51,7 +61,7 @@ public class Hmph {
     private ChunkBase chunk;
     private TextRenderer textRenderer;
     private ImageRenderer imageRenderer;
-    private boolean mouseCaptured = true;
+    private boolean mouseCaptured = false;
     private TextureManager textureManager;
     private Map<Integer, KeyAction> keyActions = new HashMap<>();
     private ChunkManagerExtension chunkManager;
@@ -62,7 +72,9 @@ public class Hmph {
     private GUIManager guiManager;
     private float timeOfDay = 0.5f;
     private boolean autoTime = true;
-
+    private MainMenuManager mainMenuManager;
+    private boolean gameStarted = false;
+    private List<TextObject> overlayTexts = new ArrayList<>();
 
     public Hmph(String title, int width, int height, boolean vSync) {
         this.title = title;
@@ -76,7 +88,9 @@ public class Hmph {
         this.lastMouseY = height/2.0;
     }
 
-    public Hmph(String title, int width, int height) { this(title, width, height, true); }
+    public Hmph(String title, int width, int height) {
+        this(title, width, height, true);
+    }
 
     public void init() {
         initGLFW();
@@ -84,16 +98,17 @@ public class Hmph {
         initOpenGL();
         loadRenderers();
         populateInputs();
-
-        BlockRegistry registry = new BlockRegistry();
-        registry.loadBlocks("assets/blocks/models");
-        initCameraAndChunk(registry);
+        registerBlocks();
+        initCameraAndChunk();
         centerWindow();
         setupWindowClose();
         runLoop();
         cleanup();
     }
 
+    /**
+     * Initialize GLFW
+     */
     private void initGLFW() {
         LoggerHelper.betterPrint("Game Started", LoggerHelper.LogType.INFO);
         GLFWErrorCallback.createPrint(System.err).set();
@@ -107,12 +122,18 @@ public class Hmph {
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
     }
 
+    /**
+     * Create window
+     */
     private void createWindow() {
         windowBoi = glfwCreateWindow(width, height, title, NULL, NULL);
         if (windowBoi==NULL) throw new RuntimeException("Failed to create window");
         glfwMakeContextCurrent(windowBoi);
     }
 
+    /**
+     * Initialize OpenGL
+     */
     private void initOpenGL() {
         GL.createCapabilities();
         glEnable(GL_DEPTH_TEST);
@@ -122,10 +143,18 @@ public class Hmph {
         glfwShowWindow(windowBoi);
     }
 
+    /**
+     * Load input handling
+     */
     private void loadInputs(float deltaTime) {
-        if (guiManager.isEnabled()) {
+        if (mainMenuManager!=null && mainMenuManager.isMenuVisible()) {
             return;
         }
+
+        if (guiManager!=null && guiManager.isEnabled()) {
+            return;
+        }
+
         boolean isMoving = false;
         Vector3f inputDirection = new Vector3f(0, 0, 0);
         if (keys[GLFW_KEY_W]) {
@@ -173,46 +202,65 @@ public class Hmph {
         camera.setPosition(player.getCameraPosition());
     }
 
+    /**
+     * Populate input actions
+     */
     private void populateInputs() {
-        keyActions.put(GLFW_KEY_1, (dt) -> switchDimension("overworld"));
-        keyActions.put(GLFW_KEY_2, (dt) -> switchDimension("greenland"));
-        keyActions.put(GLFW_KEY_3, (dt) -> switchDimension("mountains"));
-        keyActions.put(GLFW_KEY_4, (dt) -> switchDimension("flatlands"));
+        keyActions.put(GLFW_KEY_B, (dt) -> showCurrentBiome());
     }
 
+    /**
+     * Switch dimension
+     */
     private void switchDimension(String dimensionName) {
         if (chunkManager instanceof ChunkManagerExtension) {
             ChunkManagerExtension extendedManager = (ChunkManagerExtension) chunkManager;
             String currentDim = extendedManager.getCurrentDimension();
             if (!currentDim.equals(dimensionName)) {
                 extendedManager.switchDimension(dimensionName);
-                player.setPosition(player.getPosition().x, 70, player.getPosition().z);
+                player.setPosition(player.getPosition().x, 150, player.getPosition().z);
             }
         }
     }
 
+    /**
+     * Show current biome
+     */
+    private void showCurrentBiome() {
+        if (chunkManager instanceof ChunkManagerExtension) {
+            ChunkManagerExtension extManager = (ChunkManagerExtension) chunkManager;
+            Vector3f playerPos = player.getPosition();
+            String biome = extManager.getDimensionCreator().getCurrentBiome((int)playerPos.x, (int)playerPos.z);
+            LoggerHelper.betterPrint("Current Biome: " + biome, LoggerHelper.LogType.INFO);
+        }
+    }
+
+    /**
+     * Load renderers
+     */
     private void loadRenderers() {
         try {
             shaderManager = new ShaderManager();
             shaderManager.loadDefaultShaders();
             ShaderProgram textShader = shaderManager.getShader("text");
             if (textShader==null) throw new RuntimeException("Failed to load text shader");
-            textRenderer = new TextRenderer("assets/font.otf", 24f, textShader, (float)width, (float)height);
+            textRenderer = new TextRenderer("assets/font.otf", 24f, textShader, (float) width, (float) height);
             ShaderProgram texturedShader = shaderManager.getShader("textured");
             if (texturedShader==null) throw new RuntimeException("Failed to load textured shader");
-            imageRenderer = new ImageRenderer("assets/images/gui/button.png", texturedShader, (float)width, (float)height);
+            imageRenderer = new ImageRenderer("assets/images/gui/button_rectangle_flat.png", texturedShader, (float) width, (float) height);
             cubeRenderer = new CubeRenderer(shaderManager);
 
             textureManager = new TextureManager();
-            textureManager.loadTexture("dirt", "assets/blocks/dirt_block.png");
-            textureManager.loadTexture("grass", "assets/blocks/grass_block.png");
-            textureManager.loadTexture("missing", "assets/blocks/missing_texture.png");
-            textureManager.loadTexture("stone", "assets/blocks/stone_block.png");
-
             guiManager = new GUIManager(this);
-            guiManager.initialize();
+
+            mainMenuManager = new MainMenuManager(this);
+            mainMenuManager.initialize();
+            mainMenuManager.setMenuVisible(true);
 
             skyboxRenderer = new SkyboxRenderer(shaderManager);
+
+            overlayTexts.add(new TextObject("Welcome to Hmph!", 10, 10));
+            overlayTexts.add(new TextObject("Press M for Main Menu", 10, 40));
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -220,32 +268,74 @@ public class Hmph {
         }
     }
 
-    private void initCameraAndChunk(BlockRegistry registry) {
+    /**
+     * Registers all block types.
+     */
+    private void registerBlocks() {
+        String[] textures = {
+                "amethyst", "basalt", "basalt_flow", "beech_leaves", "beech_log_side", "beech_log_top", "beech_planks",
+                "cobblestone", "cobblestone_bricks", "cobblestone_bricks_mossy", "cobblestone_mossy",
+                "coral_block_brain", "coral_block_brain_bleached", "coral_block_cauliflower", "coral_block_cauliflower_bleached",
+                "coral_block_pore", "coral_block_pore_bleached", "coral_block_star", "coral_block_star_bleached",
+                "diorite", "diorite_dirty", "dirt", "eucalyptus_leaves", "eucalyptus_log_side", "eucalyptus_log_top", "eucalyptus_planks",
+                "farmland", "gabbro", "glass", "granite", "granite_bricks", "grass_side", "grass_snowy_side", "grass_top",
+                "gravel", "hay_side", "hay_top", "ice_glacier", "ice_icicles", "limestone", "limestone_bricks",
+                "maple_leaves", "maple_log_side", "maple_log_top", "maple_planks", "marble", "marble_bricks", "marble_bricks2", "marble_bricks3",
+                "mud", "mud_bricks", "mud_cracked", "oak_leaves", "oak_log_side", "oak_log_top", "oak_planks",
+                "obsidian", "pine_leaves", "pine_log_side", "pine_log_top", "pine_planks", "rhyolite", "rhyolite_tiles",
+                "sandstone", "sandstone_bricks", "sandstone_carved", "sandstone_tiles", "sand_ugly", "sand_ugly_2", "sand_ugly_3",
+                "schist", "serpentine", "serpentine_bricks", "serpentine_carved", "slate", "slate_tiles", "snow",
+                "stone_generic", "stone_generic_ore_crystalline", "stone_generic_ore_nuggets"
+        };
+
+        if (textureManager != null) {
+            int loadedCount = 0;
+            for (String tex : textures) {
+                String resourcePath = "assets/blocks/" + tex + ".png";
+                try {
+                    textureManager.loadTexture(tex, resourcePath);
+                    loadedCount++;
+                } catch (Exception e) {
+                    LoggerHelper.betterPrint("Failed to load texture: " + tex + " - " + e.getMessage(), LoggerHelper.LogType.ERROR);
+                }
+            }
+            LoggerHelper.betterPrint("Loaded " + loadedCount + "/" + textures.length + " textures", LoggerHelper.LogType.RENDERING);
+        }
+    }
+
+
+    /**
+     * Initialize camera and chunk system
+     */
+    private void initCameraAndChunk() {
         camera = new Camera();
         camera.setPosition(0, 30, 0);
         camera.lookAt(new Vector3f(8, 0, 8));
 
+        BlockRegistry registry = new BlockRegistry();
+
         String testBlock = registry.getNameFromID(1);
-        if (testBlock==null) {
-            System.err.println("WARNING: No block found with ID 1. Registry might be empty!");
-            System.err.println("Registering a default 'stone' block for testing...");
-            Map<Direction, String> defaultTextures = new java.util.EnumMap<>(hmph.rendering.world.Direction.class);
-            for (hmph.rendering.world.Direction dir : hmph.rendering.world.Direction.values()) {
-                defaultTextures.put(dir, "stone");
-            }
-            registry.registerBlock("stone", "solid", defaultTextures);
-            testBlock = registry.getNameFromID(1);
+        if (testBlock == null) {
+            System.err.println("ERROR: Block registry failed to initialize!");
+            throw new RuntimeException("Block registry initialization failed");
         }
+
+        LoggerHelper.betterPrint("Block registry initialized with " + registry.getBlockCount() + " blocks", LoggerHelper.LogType.RENDERING);
+        LoggerHelper.betterPrint("First block (ID 1): " + testBlock, LoggerHelper.LogType.RENDERING);
+
         chunkManager = new ChunkManagerExtension(registry, renderDistance);
         chunkManager.updateChunks(new Vector3f(-999, 0, -999));
+
         player = new Player(new Vector3f(0, 70, 0), chunkManager, camera);
         player.setBlockRegistry(registry);
         chunkManager.updateChunks(player.getPosition());
 
         LoggerHelper.betterPrint("ChunkManager initialized with render distance: " + renderDistance, LoggerHelper.LogType.RENDERING);
-
     }
 
+    /**
+     * Center window on screen
+     */
     private void centerWindow() {
         try (MemoryStack stack = stackPush()) {
             IntBuffer pWidth = stack.mallocInt(1);
@@ -258,42 +348,79 @@ public class Hmph {
         }
     }
 
+    /**
+     * Setup input callbacks
+     */
     private void setupInputCallbacks() {
         keyCB = glfwSetKeyCallback(windowBoi, (window, key, scancode, action, mods) -> {
             if (key>=0&&key<keys.length) {
                 keys[key] = (action==GLFW_PRESS||action==GLFW_REPEAT);
             }
+
+            if (mainMenuManager!=null) {
+                mainMenuManager.handleKeyInput(key, action);
+            }
+
             if (key==GLFW_KEY_ESCAPE&&action==GLFW_PRESS) {
-                if (guiManager.isEnabled()) {
-                    guiManager.setEnabled(false);
-                    mouseCaptured = true;
-                    glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                if (!gameStarted) {
+                    if (mainMenuManager!=null) {
+                        mainMenuManager.toggleMenu();
+                    }
                 } else {
-                    guiManager.setEnabled(true);
-                    mouseCaptured = false;
-                    glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                    if (guiManager!=null && guiManager.isEnabled()) {
+                        guiManager.setEnabled(false);
+                        mouseCaptured = true;
+                        glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    } else if (guiManager!=null) {
+                        guiManager.setEnabled(true);
+                        mouseCaptured = false;
+                        glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                    }
+                }
+            }
+
+            if (key==GLFW_KEY_M&&action==GLFW_PRESS) {
+                if (mainMenuManager!=null) {
+                    mainMenuManager.toggleMenu();
+                    if (mainMenuManager.isMenuVisible()) {
+                        mouseCaptured = false;
+                        glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                    } else {
+                        mouseCaptured = true;
+                        glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                    }
                 }
             }
         });
 
         mouseButtonCB = glfwSetMouseButtonCallback(windowBoi, (window, button, action, mods) -> {
+            if (mainMenuManager!=null && mainMenuManager.isMenuVisible()) {
+                return;
+            }
+
             if (!mouseCaptured) {
                 return;
             }
 
-            if (action == GLFW_PRESS) {
-                if (button == GLFW_MOUSE_BUTTON_LEFT) {
+            if (action==GLFW_PRESS) {
+                if (button==GLFW_MOUSE_BUTTON_LEFT) {
                     player.tryBreakBlock();
-                } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+                } else if (button==GLFW_MOUSE_BUTTON_RIGHT) {
                     player.tryPlaceBlock();
                 }
             }
         });
 
         curosrPosCB = glfwSetCursorPosCallback(windowBoi, (window, xpos, ypos) -> {
-            guiManager.update(xpos, ypos, glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)==GLFW_PRESS);
+            if (mainMenuManager!=null) {
+                mainMenuManager.update(xpos, ypos, glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)==GLFW_PRESS);
+            }
 
-            if (!guiManager.isEnabled()&&mouseCaptured) {
+            if (guiManager!=null) {
+                guiManager.update(xpos, ypos, glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT)==GLFW_PRESS);
+            }
+
+            if ((guiManager==null||!guiManager.isEnabled()) && (mainMenuManager==null||!mainMenuManager.isMenuVisible()) && mouseCaptured) {
                 if (firstMouse) {
                     lastMouseX = xpos;
                     lastMouseY = ypos;
@@ -310,7 +437,7 @@ public class Hmph {
         });
 
         glfwSetScrollCallback(windowBoi, (window, xoffset, yoffset) -> {
-            if (!guiManager.isEnabled()) {
+            if ((guiManager==null||!guiManager.isEnabled()) && (mainMenuManager==null||!mainMenuManager.isMenuVisible())) {
                 camera.processMouseScroll((float)yoffset);
             }
         });
@@ -318,6 +445,9 @@ public class Hmph {
         setupWindowSizeCallback();
     }
 
+    /**
+     * Setup window size callback
+     */
     private void setupWindowSizeCallback() {
         windowSizeCB = glfwSetWindowSizeCallback(windowBoi, (window, newWidth, newHeight) -> {
             this.width = newWidth;
@@ -329,50 +459,54 @@ public class Hmph {
                 guiManager.onWindowResize();
             }
 
-            if (textRenderer!=null) {
-                try {
-                    textRenderer.getClass().getMethod("updateDimensions", float.class, float.class).invoke(textRenderer, (float)newWidth, (float)newHeight);
-                } catch (Exception e) {
-                }
+            if (mainMenuManager!=null) {
+                mainMenuManager.onWindowResize();
             }
-            if (imageRenderer!=null) {
-                try {
-                    imageRenderer.getClass().getMethod("updateDimensions", float.class, float.class).invoke(imageRenderer, (float)newWidth, (float)newHeight);
-                } catch (Exception e) {
-                }
+
+            if (textRenderer!=null) {
+                textRenderer.setScreenSize(newWidth, newHeight);
             }
 
             LoggerHelper.betterPrint("Window resized to: " + newWidth + "x" + newHeight, LoggerHelper.LogType.INFO);
         });
     }
 
+    /**
+     * Setup window close callback
+     */
     private void setupWindowClose() {
-        windowCloseCB = glfwSetWindowCloseCallback(windowBoi, window -> { LoggerHelper.betterPrint("Running Cleanup", LoggerHelper.LogType.INFO); cleanup(); });
+        windowCloseCB = glfwSetWindowCloseCallback(windowBoi, window -> {
+            LoggerHelper.betterPrint("Running Cleanup", LoggerHelper.LogType.INFO);
+            cleanup();
+        });
     }
 
+    /**
+     * Main game loop
+     */
     private void runLoop() {
         glfwMakeContextCurrent(windowBoi);
         setupInputCallbacks();
-        glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         setupShaders();
         checkGLError("after initial setup");
 
         double lastTime = glfwGetTime();
         float dayLengthInSeconds = 60.0f;
-        float daySpeed = 24.0f / dayLengthInSeconds;
 
         while (!glfwWindowShouldClose(windowBoi)) {
             double currentTime = glfwGetTime();
-            float deltaTime = (float)(currentTime - lastTime);
+            float deltaTime = (float)(currentTime-lastTime);
             lastTime = currentTime;
 
             if (autoTime) {
                 gameTime += deltaTime;
-                timeOfDay = (gameTime % dayLengthInSeconds) / dayLengthInSeconds;
+                timeOfDay = (gameTime%dayLengthInSeconds)/dayLengthInSeconds;
             }
 
-
-            player.update(deltaTime);
+            if (player!=null) {
+                player.update(deltaTime);
+            }
             loadInputs(deltaTime);
             renderScene();
             checkGLError("after render");
@@ -380,15 +514,17 @@ public class Hmph {
             glfwPollEvents();
         }
 
-        LoggerHelper.betterPrint("Overlay & Chunk System Created nicely", LoggerHelper.LogType.RENDERING);
+        LoggerHelper.betterPrint("Game loop ended", LoggerHelper.LogType.RENDERING);
     }
 
-
+    /**
+     * Setup shaders
+     */
     private void setupShaders() {
         checkGLError("before shader setup");
         ShaderProgram chunkShader = shaderManager.getShader("3d");
-        ShaderProgram imageShader = imageRenderer.getShader();
-        ShaderProgram textShader = textRenderer.getShader();
+        ShaderProgram imageShader = imageRenderer!=null ? imageRenderer.getShader() : null;
+        ShaderProgram textShader = textRenderer!=null ? textRenderer.getShader() : null;
         if (chunkShader==null) {
             System.err.println("3D shader not found!");
         }
@@ -401,14 +537,16 @@ public class Hmph {
         checkGLError("after shader setup");
     }
 
+    /**
+     * Render scene
+     */
     private void renderScene() {
-
         glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
-        if (skyboxRenderer != null) {
+        if (skyboxRenderer!=null) {
             ShaderProgram skyboxShader = shaderManager.getShader("skybox");
-            if (skyboxShader != null) {
+            if (skyboxShader!=null) {
                 skyboxShader.bind();
                 glDepthMask(false);
                 skyboxRenderer.renderWithTime(camera, width, height, timeOfDay);
@@ -416,7 +554,6 @@ public class Hmph {
                 skyboxShader.unbind();
             }
         }
-
 
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
@@ -435,8 +572,12 @@ public class Hmph {
         }
     }
 
-
+    /**
+     * Render chunks
+     */
     private void renderChunk() {
+        if (chunkManager == null) return;
+
         ShaderProgram chunkShader = shaderManager.getShader("3d");
         if (chunkShader == null) return;
 
@@ -463,30 +604,41 @@ public class Hmph {
 
             chunkShader.setUniform("view", viewMatrix);
             chunkShader.setUniform("projection", projectionMatrix);
-
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, textureManager.getTexture("grass"));
-            chunkShader.setUniform("texture1", 0);
-            chunkShader.setUniform("color", new Vector3f(1.0f, 1.0f, 1.0f));
-
-            // woah hey lighting for the day stuff
             chunkShader.setUniform("lightDirection", lighting.direction);
             chunkShader.setUniform("lightColor", lighting.color);
             chunkShader.setUniform("ambientStrength", lighting.ambientStrength);
             chunkShader.setUniform("ambientColor", lighting.ambientColor);
+            chunkShader.setUniform("color", new Vector3f(1.0f, 1.0f, 1.0f));
+            chunkShader.setUniform("texture1", 0);
 
-            for (ChunkBase chunk : chunks.values()) {
-                if (!chunk.isMeshBuilt()) continue;
-                int vao = chunk.getVao();
-                if (vao == 0) continue;
-                int indexCount = chunk.getIndexCount();
-                if (indexCount <= 0) continue;
+            glActiveTexture(GL_TEXTURE0);
 
-                Matrix4f modelMatrix = new Matrix4f().identity().translate(chunk.getPosition());
-                chunkShader.setUniform("model", modelMatrix);
+            // Group chunks by primary block type for batching (simplified approach)
+            Map<String, List<ChunkBase>> chunksByTexture = groupChunksByPrimaryTexture(chunks);
 
-                glBindVertexArray(vao);
-                glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+            for (Map.Entry<String, List<ChunkBase>> entry : chunksByTexture.entrySet()) {
+                String textureName = entry.getKey();
+                int textureId = textureManager.getTexture(textureName);
+
+                if (textureId != 0) {
+                    glBindTexture(GL_TEXTURE_2D, textureId);
+                } else {
+                    glBindTexture(GL_TEXTURE_2D, textureManager.getTexture("stone_generic"));
+                }
+
+                for (ChunkBase chunk : entry.getValue()) {
+                    if (!chunk.isMeshBuilt()) continue;
+                    int vao = chunk.getVao();
+                    if (vao == 0) continue;
+                    int indexCount = chunk.getIndexCount();
+                    if (indexCount <= 0) continue;
+
+                    Matrix4f modelMatrix = new Matrix4f().identity().translate(chunk.getPosition());
+                    chunkShader.setUniform("model", modelMatrix);
+
+                    glBindVertexArray(vao);
+                    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+                }
             }
 
             glBindVertexArray(0);
@@ -495,6 +647,7 @@ public class Hmph {
             e.printStackTrace();
         } finally {
             glBindVertexArray(0);
+            glBindTexture(GL_TEXTURE_2D, 0);
             if (!depthTest) glDisable(GL_DEPTH_TEST);
             if (!cullFace) glDisable(GL_CULL_FACE);
             if (currentProgram != 0) glUseProgram(currentProgram);
@@ -502,17 +655,41 @@ public class Hmph {
         }
     }
 
-    private String getOpenGLErrorString(int error) {
-        switch (error) {
-            case GL_INVALID_ENUM: return "GL_INVALID_ENUM";
-            case GL_INVALID_VALUE: return "GL_INVALID_VALUE";
-            case GL_INVALID_OPERATION: return "GL_INVALID_OPERATION";
-            case GL_OUT_OF_MEMORY: return "GL_OUT_OF_MEMORY";
-            case GL_INVALID_FRAMEBUFFER_OPERATION: return "GL_INVALID_FRAMEBUFFER_OPERATION";
-            default: return "Unknown error: " + error;
+    private Map<String, List<ChunkBase>> groupChunksByPrimaryTexture(Map<Long, ChunkBase> chunks) {
+        Map<String, List<ChunkBase>> grouped = new HashMap<>();
+
+        // For now, we'll assign textures based on biome or chunk position
+        // This is a simplified approach - you might want to enhance this later
+        for (ChunkBase chunk : chunks.values()) {
+            String primaryTexture = determinePrimaryTexture(chunk);
+            grouped.computeIfAbsent(primaryTexture, k -> new ArrayList<>()).add(chunk);
+        }
+
+        return grouped;
+    }
+
+    private String determinePrimaryTexture(ChunkBase chunk) {
+        Vector3f pos = chunk.getPosition();
+
+        int chunkX = (int)(pos.x / 16);
+        int chunkZ = (int)(pos.z / 16);
+
+        int hash = (chunkX * 31 + chunkZ) % 6;
+
+        switch (hash) {
+            case 0: return "stone_generic";
+            case 1: return "dirt";
+            case 2: return "granite";
+            case 3: return "marble";
+            case 4: return "sandstone";
+            case 5: return "basalt";
+            default: return "stone_generic";
         }
     }
 
+    /**
+     * Render GUI
+     */
     private void renderGUI() {
         boolean depthTest = glIsEnabled(GL_DEPTH_TEST);
         boolean blend = glIsEnabled(GL_BLEND);
@@ -527,39 +704,22 @@ public class Hmph {
             }
             while (glGetError()!=GL_NO_ERROR);
 
-            String currentDim = (chunkManager instanceof ChunkManagerExtension) ? ((ChunkManagerExtension) chunkManager).getCurrentDimension() : "overworld";
-
-            String info = String.format("Pos: (%.2f, %.2f, %.2f) Dim: %s Chunks: %d",
-                    player.getPosition().x, player.getPosition().y, player.getPosition().z,
-                    currentDim, chunkManager.getLoadedChunkCount());
-            textRenderer.renderText(info, 10, 40);
-
-            Map<Long, ChunkBase> chunks = chunkManager.getLoadedChunks();
-            if (!chunks.isEmpty()) {
-                ChunkBase firstChunk = chunks.values().iterator().next();
-                String chunkInfo = "Chunks " + chunks.size() + " Chunk at " + firstChunk.getPosition();
-                textRenderer.renderText(chunkInfo, 10, 80);
+            if (!gameStarted) {
+                for (TextObject textObj : overlayTexts) {
+                    textRenderer.renderText(textObj.getText(), textObj.getX(), textObj.getY());
+                }
             }
 
-            if (guiManager!=null) {
-                guiManager.render();
+            if (mainMenuManager!=null) {
+                mainMenuManager.render();
             }
 
-            float scaledWidth = 128*3, scaledHeight = 32*3;
-            float centerX = (width/2.0f)-(scaledWidth/2.0f);
-            float centerY = (height/2.0f)-(scaledHeight/2.0f);
-            int error = glGetError();
-            if (error!=GL_NO_ERROR) {
-                LoggerHelper.betterPrint("OpenGL error during GUI rendering: " + error, LoggerHelper.LogType.ERROR);
-            }
         } catch (Exception e) {
             LoggerHelper.betterPrint("Error in renderGUI: " + e.getMessage(), LoggerHelper.LogType.ERROR);
             e.printStackTrace();
         } finally {
             glBindTexture(GL_TEXTURE_2D, 0);
-            if (currentProgram!=0) {
-                glUseProgram(currentProgram);
-            }
+            if (currentProgram!=0) glUseProgram(currentProgram);
             if (depthTest) glEnable(GL_DEPTH_TEST);
             if (!blend) glDisable(GL_BLEND);
             if (cullFace) glEnable(GL_CULL_FACE);
@@ -567,6 +727,9 @@ public class Hmph {
         }
     }
 
+    /**
+     * Check for OpenGL errors
+     */
     private void checkGLError(String operation) {
         int error = glGetError();
         if (error!=GL_NO_ERROR) {
@@ -582,7 +745,25 @@ public class Hmph {
         }
     }
 
+    /**
+     * Start game
+     */
+    public void startGame() {
+        gameStarted = true;
+        if (mainMenuManager!=null) {
+            mainMenuManager.setMenuVisible(false);
+        }
+        mouseCaptured = true;
+        glfwSetInputMode(windowBoi, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        firstMouse = true;
+        LoggerHelper.betterPrint("Game started!", LoggerHelper.LogType.INFO);
+    }
+
+    /**
+     * Cleanup resources
+     */
     private void cleanup() {
+        if (mainMenuManager!=null) mainMenuManager.cleanup();
         if (guiManager!=null) guiManager.cleanup();
         if (cubeRenderer!=null) cubeRenderer.cleanup();
         if (shaderManager!=null) shaderManager.cleanup();

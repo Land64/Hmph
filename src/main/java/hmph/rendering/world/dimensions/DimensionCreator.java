@@ -1,230 +1,332 @@
 package hmph.rendering.world.dimensions;
+
 import hmph.math.PerlinNoise;
 import hmph.rendering.BlockRegistry;
+import hmph.rendering.world.biomes.BiomeManager;
 import java.util.*;
-import java.util.function.BiFunction;
+
 public class DimensionCreator {
     private static final int AIR = 0;
     private final BlockRegistry registry;
-    private final Map<String, DimensionConfig> dimensions = new HashMap<>();
+    private final BiomeManager biomeManager;
+
+    // Terrain generation parameters
+    private static final double CONTINENT_SCALE = 0.0008;  // Large scale landmass
+    private static final double TERRAIN_SCALE = 0.02;     // Medium scale hills
+    private static final double DETAIL_SCALE = 0.08;      // Fine detail
+    private static final double BIOME_SCALE = 0.004;      // Biome boundaries
+
+    private static final int SEA_LEVEL = 62;
+    private static final int MAX_HEIGHT = 140;
+    private static final int MIN_HEIGHT = 1;
+
+    // Noise generators for different terrain features
+    private final PerlinNoise continentNoise;
+    private final PerlinNoise terrainNoise;
+    private final PerlinNoise detailNoise;
+    private final PerlinNoise caveNoise;
+    private final PerlinNoise oreNoise;
+
     public DimensionCreator(BlockRegistry registry) {
         this.registry = registry;
-        initDefaultDimensions();
+        this.biomeManager = new BiomeManager(registry);
+
+        // Initialize noise generators with different seeds for variety
+        this.continentNoise = new PerlinNoise(1234);
+        this.terrainNoise = new PerlinNoise(5678);
+        this.detailNoise = new PerlinNoise(9012);
+        this.caveNoise = new PerlinNoise(3456);
+        this.oreNoise = new PerlinNoise(7890);
     }
-    public static class DimensionConfig {
-        public final String name;
-        public final BiFunction<Integer, Integer, TerrainData> generator;
-        public final Map<String, Integer> blockIds;
-        public final TerrainSettings settings;
-        public DimensionConfig(String name, BiFunction<Integer, Integer, TerrainData> generator, Map<String, Integer> blockIds, TerrainSettings settings) {
-            this.name = name;
-            this.generator = generator;
-            this.blockIds = blockIds;
-            this.settings = settings;
-        }
-    }
-    public static class TerrainSettings {
-        public final double scale;
-        public final int maxHeight;
-        public final int seaLevel;
-        public final int surfaceDepth;
-        public final int subSurfaceDepth;
-        public TerrainSettings(double scale, int maxHeight, int seaLevel, int surfaceDepth, int subSurfaceDepth) {
-            this.scale = scale;
-            this.maxHeight = maxHeight;
-            this.seaLevel = seaLevel;
-            this.surfaceDepth = surfaceDepth;
-            this.subSurfaceDepth = subSurfaceDepth;
-        }
-    }
+
     public static class TerrainData {
         public final int[][][] blocks;
         public final int blocksGenerated;
+        public final String biomeName;
+
         public TerrainData(int[][][] blocks, int blocksGenerated) {
             this.blocks = blocks;
             this.blocksGenerated = blocksGenerated;
+            this.biomeName = null;
+        }
+
+        public TerrainData(int[][][] blocks, int blocksGenerated, String biomeName) {
+            this.blocks = blocks;
+            this.blocksGenerated = blocksGenerated;
+            this.biomeName = biomeName;
         }
     }
-    private void initDefaultDimensions() {
-        Map<String, Integer> overworldBlocks = new HashMap<>();
-        overworldBlocks.put("grass", registry.getIDFromName("grass_block"));
-        overworldBlocks.put("dirt", registry.getIDFromName("dirt_block"));
-        overworldBlocks.put("stone", registry.getIDFromName("stone_block"));
-        TerrainSettings overworldSettings = new TerrainSettings(0.05, 30, 10, 1, 3);
-        registerDimension("overworld", this::generateOverworld, overworldBlocks, overworldSettings);
-        Map<String, Integer> greenlandBlocks = new HashMap<>();
-        greenlandBlocks.put("grass", registry.getIDFromName("grass_block"));
-        greenlandBlocks.put("dirt", registry.getIDFromName("dirt_block"));
-        greenlandBlocks.put("stone", registry.getIDFromName("stone_block"));
-        TerrainSettings greenlandSettings = new TerrainSettings(0.03, 50, 15, 2, 5);
-        //registerDimension("greenland", this::generateGreenland, greenlandBlocks, greenlandSettings);
-        Map<String, Integer> mountainBlocks = new HashMap<>();
-        mountainBlocks.put("stone", registry.getIDFromName("stone_block"));
-        mountainBlocks.put("dirt", registry.getIDFromName("dirt_block"));
-        mountainBlocks.put("grass", registry.getIDFromName("grass_block"));
-        TerrainSettings mountainSettings = new TerrainSettings(0.02, 80, 5, 1, 2);
-        //registerDimension("mountains", this::generateMountains, mountainBlocks, mountainSettings);
-        Map<String, Integer> flatBlocks = new HashMap<>();
-        flatBlocks.put("grass", registry.getIDFromName("grass_block"));
-        flatBlocks.put("dirt", registry.getIDFromName("dirt_block"));
-        flatBlocks.put("stone", registry.getIDFromName("stone_block"));
-        TerrainSettings flatSettings = new TerrainSettings(0.1, 5, 20, 1, 3);
-        //registerDimension("flatlands", this::generateFlatlands, flatBlocks, flatSettings);
-    }
-    public void registerDimension(String name, BiFunction<Integer, Integer, TerrainData> generator, Map<String, Integer> blockIds, TerrainSettings settings) {
-        dimensions.put(name, new DimensionConfig(name, generator, blockIds, settings));
-    }
+
     public TerrainData generateTerrain(String dimensionName, int chunkX, int chunkZ, PerlinNoise perlin) {
-        DimensionConfig config = dimensions.get(dimensionName);
-        if (config == null) config = dimensions.get("overworld");
-        
-        // Pass the shared perlin noise to the generation methods
-        if (dimensionName.equals("overworld")) {
-            return generateStandardTerrain(chunkX, chunkZ, config, perlin);
-        } else if (dimensionName.equals("greenland")) {
-            return generateGreenland(chunkX, chunkZ, perlin);
-        } else if (dimensionName.equals("mountains")) {
-            return generateMountains(chunkX, chunkZ, perlin);
-        } else if (dimensionName.equals("flatlands")) {
-            return generateFlatlands(chunkX, chunkZ, perlin);
+        switch (dimensionName.toLowerCase()) {
+            case "overworld":
+                return generateOverworldTerrain(chunkX, chunkZ, perlin);
+            case "nether":
+                return generateNetherTerrain(chunkX, chunkZ, perlin);
+            case "end":
+                return generateEndTerrain(chunkX, chunkZ, perlin);
+            default:
+                return generateOverworldTerrain(chunkX, chunkZ, perlin);
+        }
+    }
+
+    private TerrainData generateOverworldTerrain(int chunkX, int chunkZ, PerlinNoise perlin) {
+        int[][][] blocks = new int[16][256][16];
+        int blocksGenerated = 0;
+        String primaryBiome = null;
+
+        // Get block IDs
+        int stoneId = registry.getIDFromName("stone");
+        int dirtId = registry.getIDFromName("dirt");
+        int grassId = registry.getIDFromName("grass");
+        int sandId = registry.getIDFromName("sand_ugly");
+        int sandstoneId = registry.getIDFromName("sandstone");
+        int graniteId = registry.getIDFromName("granite");
+        int marbleId = registry.getIDFromName("marble");
+        int oakLeavesId = registry.getIDFromName("oak_leaves");
+        int pineLeavesId = registry.getIDFromName("pine_leaves");
+        int snowId = registry.getIDFromName("snow");
+        int gravelId = registry.getIDFromName("gravel");
+
+        // Fallback to stone if blocks don't exist
+        if (stoneId == 0) stoneId = 1;
+        if (dirtId == 0) dirtId = stoneId;
+        if (grassId == 0) grassId = stoneId;
+
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                int worldX = chunkX * 16 + x;
+                int worldZ = chunkZ * 16 + z;
+
+                // Generate height using multiple noise layers
+                double continentHeight = continentNoise.noise(worldX * CONTINENT_SCALE, 0, worldZ * CONTINENT_SCALE);
+                double terrainHeight = terrainNoise.noise(worldX * TERRAIN_SCALE, 0, worldZ * TERRAIN_SCALE);
+                double detailHeight = detailNoise.noise(worldX * DETAIL_SCALE, 0, worldZ * DETAIL_SCALE);
+
+                // Combine noise layers with different weights
+                double combinedNoise =
+                        continentHeight * 0.5 +     // Large scale landmasses
+                                terrainHeight * 0.3 +       // Medium scale hills
+                                detailHeight * 0.2;         // Fine detail
+
+                // Convert to height
+                int baseHeight = (int) ((combinedNoise * 0.5 + 0.5) * (MAX_HEIGHT - SEA_LEVEL)) + SEA_LEVEL;
+                baseHeight = Math.max(MIN_HEIGHT, Math.min(baseHeight, MAX_HEIGHT));
+
+                // Determine biome
+                String biome = determineBiome(worldX, worldZ, baseHeight);
+                if (primaryBiome == null) primaryBiome = biome;
+
+                // Adjust height based on biome
+                int finalHeight = adjustHeightForBiome(baseHeight, biome, worldX, worldZ);
+
+                // Generate column
+                for (int y = 0; y <= finalHeight && y < 256; y++) {
+                    int blockId = determineBlockType(worldX, y, worldZ, finalHeight, biome);
+                    if (blockId != AIR) {
+                        blocks[x][y][z] = blockId;
+                        blocksGenerated++;
+                    }
+
+                    // Add caves
+                    if (y > 5 && y < 50) {
+                        double caveValue = caveNoise.noise(worldX * 0.05, y * 0.05, worldZ * 0.05);
+                        if (caveValue > 0.6) {
+                            blocks[x][y][z] = AIR;
+                            if (blocks[x][y][z] != AIR) blocksGenerated--;
+                        }
+                    }
+                }
+
+                // Add water for areas below sea level
+                for (int y = finalHeight + 1; y <= SEA_LEVEL && y < 256; y++) {
+                    // In a real implementation, you'd add water blocks here
+                    // For now, we'll leave it as air
+                }
+
+                // Add surface features (trees, etc.)
+                if (finalHeight >= SEA_LEVEL) {
+                    generateSurfaceFeatures(blocks, x, z, finalHeight, biome, worldX, worldZ);
+                }
+            }
+        }
+
+        return new TerrainData(blocks, blocksGenerated, primaryBiome);
+    }
+
+    private String determineBiome(int worldX, int worldZ, int height) {
+        double temperature = continentNoise.noise(worldX * BIOME_SCALE, 100, worldZ * BIOME_SCALE);
+        double humidity = terrainNoise.noise(worldX * BIOME_SCALE, 200, worldZ * BIOME_SCALE);
+        double biomeNoise = detailNoise.noise(worldX * BIOME_SCALE * 2, 0, worldZ * BIOME_SCALE * 2);
+
+        // Normalize values
+        temperature = (temperature + 1.0) * 0.5;
+        humidity = (humidity + 1.0) * 0.5;
+        biomeNoise = (biomeNoise + 1.0) * 0.5;
+
+        // Height influences biome (mountains are colder)
+        if (height > 90) {
+            return temperature < 0.3 ? "mountains" : "taiga";
+        }
+
+        if (height < SEA_LEVEL + 5) {
+            return "plains";
+        }
+
+        if (temperature < 0.2) {
+            return humidity > 0.5 ? "taiga" : "mountains";
+        } else if (temperature > 0.8) {
+            return humidity < 0.3 ? "desert" : "swamp";
+        } else if (humidity < 0.3) {
+            return "desert";
+        } else if (humidity > 0.7 && temperature > 0.4) {
+            return biomeNoise > 0.6 ? "forest" : "swamp";
         } else {
-            return generateStandardTerrain(chunkX, chunkZ, config, perlin);
+            return biomeNoise > 0.5 ? "forest" : "plains";
         }
     }
-    private TerrainData generateOverworld(int chunkX, int chunkZ) {
-        // This method is kept for backward compatibility but should use the shared perlin version
-        PerlinNoise tempPerlin = new PerlinNoise(); // Only for backward compatibility
-        return generateStandardTerrain(chunkX, chunkZ, dimensions.get("overworld"), tempPerlin);
+
+    private int adjustHeightForBiome(int baseHeight, String biome, int worldX, int worldZ) {
+        switch (biome) {
+            case "mountains":
+                double mountainNoise = terrainNoise.noise(worldX * 0.01, 0, worldZ * 0.01);
+                return baseHeight + (int)(mountainNoise * 30);
+            case "desert":
+                return baseHeight - 5;
+            case "swamp":
+                return Math.min(baseHeight, SEA_LEVEL + 2);
+            case "plains":
+                double plainsNoise = detailNoise.noise(worldX * 0.03, 0, worldZ * 0.03);
+                return baseHeight + (int)(plainsNoise * 5);
+            default:
+                return baseHeight;
+        }
     }
-    private TerrainData generateGreenland(int chunkX, int chunkZ, PerlinNoise perlin) {
-        DimensionConfig config = dimensions.get("greenland");
-        int[][][] blocks = new int[16][256][16];
-        int blocksGenerated = 0;
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                double worldX = (chunkX * 16 + x) * config.settings.scale;
-                double worldZ = (chunkZ * 16 + z) * config.settings.scale;
-                double noise1 = perlin.noise(worldX, 0, worldZ);
-                double noise2 = perlin.noise(worldX * 2, 0, worldZ * 2) * 0.5;
-                double combinedNoise = (noise1 + noise2) * 0.6;
-                int height = (int) ((combinedNoise * 0.5 + 0.5) * config.settings.maxHeight);
-                height = Math.max(config.settings.seaLevel, Math.min(height, 255));
-                for (int y = 0; y <= height; y++) {
-                    if (y == height && height >= config.settings.seaLevel) {
-                        blocks[x][y][z] = config.blockIds.get("grass");
-                    } else if (y >= height - config.settings.subSurfaceDepth && y < height && height >= config.settings.seaLevel) {
-                        blocks[x][y][z] = config.blockIds.get("dirt");
+
+    private int determineBlockType(int worldX, int worldY, int worldZ, int surfaceHeight, String biome) {
+        int stoneId = registry.getIDFromName("stone");
+        int dirtId = registry.getIDFromName("dirt");
+        int grassId = registry.getIDFromName("grass");
+        int sandId = registry.getIDFromName("sand_ugly");
+        int sandstoneId = registry.getIDFromName("sandstone");
+        int graniteId = registry.getIDFromName("granite");
+        int marbleId = registry.getIDFromName("marble");
+        int snowId = registry.getIDFromName("snow");
+
+        if (stoneId == 0) stoneId = 1;
+        if (dirtId == 0) dirtId = stoneId;
+        if (grassId == 0) grassId = stoneId;
+        if (sandId == 0) sandId = stoneId;
+
+        if (worldY == 0) {
+            return stoneId;
+        }
+
+        if (worldY < surfaceHeight - 5) {
+            if (worldY < 16) {
+                double oreChance = oreNoise.noise(worldX * 0.1, worldY * 0.1, worldZ * 0.1);
+                if (oreChance > 0.8) {
+                    return graniteId != 0 ? graniteId : stoneId;
+                } else if (oreChance > 0.7) {
+                    return marbleId != 0 ? marbleId : stoneId;
+                }
+            }
+            return stoneId;
+        }
+
+        // Surface layers based on biome
+        if (worldY == surfaceHeight) {
+            // Top surface
+            switch (biome) {
+                case "desert":
+                    return sandId;
+                case "mountains":
+                    if (surfaceHeight > 100) {
+                        return snowId != 0 ? snowId : stoneId;
                     } else {
-                        blocks[x][y][z] = config.blockIds.get("stone");
+                        return stoneId;
                     }
-                    blocksGenerated++;
+                case "swamp":
+                    return dirtId;
+                default:
+                    return grassId;
+            }
+        } else if (worldY >= surfaceHeight - 3) {
+            switch (biome) {
+                case "desert":
+                    if (worldY >= surfaceHeight - 1) {
+                        return sandId;
+                    } else {
+                        return sandstoneId != 0 ? sandstoneId : stoneId;
+                    }
+                case "mountains":
+                    return stoneId;
+                default:
+                    return dirtId;
+            }
+        }
+
+        return stoneId;
+    }
+
+    private void generateSurfaceFeatures(int[][][] blocks, int x, int z, int surfaceHeight, String biome, int worldX, int worldZ) {
+        int oakLeavesId = registry.getIDFromName("oak_leaves");
+        int pineLeavesId = registry.getIDFromName("pine_leaves");
+        int oakLogId = registry.getIDFromName("oak_log");
+        int pineLogId = registry.getIDFromName("pine_log");
+
+        if ((biome.equals("forest") || biome.equals("taiga")) && surfaceHeight >= SEA_LEVEL) {
+            double treeChance = detailNoise.noise(worldX * 0.1, 0, worldZ * 0.1);
+            if (treeChance > 0.7 && surfaceHeight + 6 < 256) {
+                int logId = biome.equals("taiga") && pineLogId != 0 ? pineLogId :
+                        (oakLogId != 0 ? oakLogId : registry.getIDFromName("stone"));
+                int leavesId = biome.equals("taiga") && pineLeavesId != 0 ? pineLeavesId :
+                        (oakLeavesId != 0 ? oakLeavesId : registry.getIDFromName("oak_leaves"));
+
+                if (leavesId == 0) leavesId = registry.getIDFromName("stone");
+
+                for (int y = surfaceHeight + 1; y <= surfaceHeight + 4; y++) {
+                    if (y < 256) blocks[x][y][z] = logId;
+                }
+
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        for (int dz = -1; dz <= 1; dz++) {
+                            int leafX = x + dx;
+                            int leafZ = z + dz;
+                            int leafY = surfaceHeight + 4 + dy;
+
+                            if (leafX >= 0 && leafX < 16 && leafZ >= 0 && leafZ < 16 &&
+                                    leafY < 256 && (dx != 0 || dz != 0 || dy != 0)) {
+                                blocks[leafX][leafY][leafZ] = leavesId;
+                            }
+                        }
+                    }
                 }
             }
         }
-        return new TerrainData(blocks, blocksGenerated);
     }
-    private TerrainData generateMountains(int chunkX, int chunkZ, PerlinNoise perlin) {
-        DimensionConfig config = dimensions.get("mountains");
+
+    private TerrainData generateNetherTerrain(int chunkX, int chunkZ, PerlinNoise perlin) {
+        // Placeholder for Nether generation
         int[][][] blocks = new int[16][256][16];
-        int blocksGenerated = 0;
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                double worldX = (chunkX * 16 + x) * config.settings.scale;
-                double worldZ = (chunkZ * 16 + z) * config.settings.scale;
-                double noise1 = perlin.noise(worldX, 0, worldZ);
-                double noise2 = perlin.noise(worldX * 0.5, 0, worldZ * 0.5) * 2;
-                double ridgeNoise = Math.abs(perlin.noise(worldX * 4, 0, worldZ * 4)) * 0.3;
-                double combinedNoise = noise1 + noise2 + ridgeNoise;
-                int height = (int) ((combinedNoise * 0.5 + 0.5) * config.settings.maxHeight);
-                height = Math.max(config.settings.seaLevel, Math.min(height, 255));
-                for (int y = 0; y <= height; y++) {
-                    if (y == height && height >= config.settings.seaLevel + 10) {
-                        blocks[x][y][z] = config.blockIds.get("stone");
-                    } else if (y == height && height >= config.settings.seaLevel) {
-                        blocks[x][y][z] = config.blockIds.get("grass");
-                    } else if (y >= height - config.settings.subSurfaceDepth && y < height) {
-                        blocks[x][y][z] = config.blockIds.get("dirt");
-                    } else {
-                        blocks[x][y][z] = config.blockIds.get("stone");
-                    }
-                    blocksGenerated++;
-                }
-            }
-        }
-        return new TerrainData(blocks, blocksGenerated);
+        return new TerrainData(blocks, 0, "nether");
     }
-    private TerrainData generateFlatlands(int chunkX, int chunkZ, PerlinNoise perlin) {
-        DimensionConfig config = dimensions.get("flatlands");
+
+    private TerrainData generateEndTerrain(int chunkX, int chunkZ, PerlinNoise perlin) {
         int[][][] blocks = new int[16][256][16];
-        int blocksGenerated = 0;
-        int height = config.settings.seaLevel;
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                for (int y = 0; y <= height; y++) {
-                    if (y == height) {
-                        blocks[x][y][z] = config.blockIds.get("grass");
-                    } else if (y >= height - config.settings.subSurfaceDepth) {
-                        blocks[x][y][z] = config.blockIds.get("dirt");
-                    } else {
-                        blocks[x][y][z] = config.blockIds.get("stone");
-                    }
-                    blocksGenerated++;
-                }
-            }
-        }
-        return new TerrainData(blocks, blocksGenerated);
+        return new TerrainData(blocks, 0, "end");
     }
-    private TerrainData generateStandardTerrain(int chunkX, int chunkZ, DimensionConfig config, PerlinNoise perlin) {
-        int[][][] blocks = new int[16][256][16];
-        int blocksGenerated = 0;
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                double worldX = (chunkX * 16 + x) * config.settings.scale;
-                double worldZ = (chunkZ * 16 + z) * config.settings.scale;
-                double noiseValue = perlin.noise(worldX, 0, worldZ);
-                int height = (int) ((noiseValue * 0.5 + 0.5) * config.settings.maxHeight);
-                height = Math.max(config.settings.seaLevel, Math.min(height, 255));
-                for (int y = 0; y <= height; y++) {
-                    if (y == height && height >= config.settings.seaLevel) {
-                        blocks[x][y][z] = config.blockIds.get("grass");
-                    } else if (y >= height - config.settings.subSurfaceDepth && y < height && height >= config.settings.seaLevel) {
-                        blocks[x][y][z] = config.blockIds.get("dirt");
-                    } else {
-                        blocks[x][y][z] = config.blockIds.get("stone");
-                    }
-                    blocksGenerated++;
-                }
-            }
-        }
-        return new TerrainData(blocks, blocksGenerated);
-    }
+
     public Set<String> getAvailableDimensions() {
-        return dimensions.keySet();
+        return Set.of("overworld", "nether", "end");
     }
-    public DimensionConfig getDimensionConfig(String name) {
-        return dimensions.get(name);
+
+    public BiomeManager getBiomeManager() {
+        return biomeManager;
     }
-    public TerrainData generateCustomTerrain(int chunkX, int chunkZ, String[] blockTypes, double scale, int maxHeight, int seaLevel, PerlinNoise perlin) {
-        int[][][] blocks = new int[16][256][16];
-        int blocksGenerated = 0;
-        Map<String, Integer> blockIds = new HashMap<>();
-        for (String blockType : blockTypes) {
-            blockIds.put(blockType, registry.getIDFromName(blockType));
-        }
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                double worldX = (chunkX * 16 + x) * scale;
-                double worldZ = (chunkZ * 16 + z) * scale;
-                double noiseValue = perlin.noise(worldX, 0, worldZ);
-                int height = (int) ((noiseValue * 0.5 + 0.5) * maxHeight);
-                height = Math.max(seaLevel, Math.min(height, 255));
-                for (int y = 0; y <= height; y++) {
-                    String blockType = blockTypes[Math.min(y * blockTypes.length / (height + 1), blockTypes.length - 1)];
-                    blocks[x][y][z] = blockIds.get(blockType);
-                    blocksGenerated++;
-                }
-            }
-        }
-        return new TerrainData(blocks, blocksGenerated);
+
+    public String getCurrentBiome(int worldX, int worldZ) {
+        return determineBiome(worldX, worldZ, SEA_LEVEL + 20);
     }
 }

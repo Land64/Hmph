@@ -1,6 +1,1 @@
-{
-  "global": "grass_block",
-  "textures": {
-    "all": "grass_block.png"
-  }
-}
+{"global": "grass_block", "textures": {"up": "grass_top", "down": "dirt", "north": "grass_side", "south": "grass_side", "east": "grass_side", "west": "grass_side"}} 

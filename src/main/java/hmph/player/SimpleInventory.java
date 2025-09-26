@@ -5,14 +5,24 @@ import java.util.Map;
 
 public class SimpleInventory {
     private Map<String, Integer> items;
-    private String[] hotbarSlots = {"stone", "dirt", "grass"};
+    private String[] hotbarSlots = {
+            "stone", "dirt", "grass", "granite", "marble", "basalt",
+            "sandstone", "oak_leaves", "pine_leaves"
+    };
     private int selectedHotbarSlot = 0;
 
     public SimpleInventory() {
         items = new HashMap<>();
+        // Use the actual block names from BlockManager
         items.put("stone", 64);
         items.put("dirt", 64);
-        items.put("grass", 64);
+        items.put("grass_block", 64);
+        items.put("granite", 32);
+        items.put("marble", 32);
+        items.put("basalt", 32);
+        items.put("sandstone", 32);
+        items.put("oak_leaves", 32);
+        items.put("pine_leaves", 32);
     }
 
     /**

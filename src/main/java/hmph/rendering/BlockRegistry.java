@@ -2,13 +2,7 @@ package hmph.rendering;
 
 import hmph.rendering.world.Direction;
 import hmph.util.debug.LoggerHelper;
-
-import java.io.*;
 import java.util.*;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.util.jar.*;
-import java.util.stream.Collectors;
 
 public class BlockRegistry {
     private final Map<String, BlockData> blocks = new HashMap<>();
@@ -18,17 +12,184 @@ public class BlockRegistry {
     public static class BlockData {
         public final String type;
         public final Map<Direction, String> faceTextures;
+        public final BlockProperties properties;
 
-        public BlockData(String type, Map<Direction, String> faceTextures) {
+        public BlockData(String type, Map<Direction, String> faceTextures, BlockProperties properties) {
             this.type = type;
             this.faceTextures = faceTextures;
+            this.properties = properties;
         }
     }
 
-    public void registerBlock(String name, String type, Map<Direction, String> textures) {
-        blocks.put(name, new BlockData(type, textures));
+    public static class BlockProperties {
+        public final float hardness;
+        public final boolean isFlammable;
+        public final boolean isTransparent;
+        public final boolean emitsLight;
+        public final int lightLevel;
+
+        public BlockProperties(float hardness, boolean isFlammable, boolean isTransparent, boolean emitsLight, int lightLevel) {
+            this.hardness = hardness;
+            this.isFlammable = isFlammable;
+            this.isTransparent = isTransparent;
+            this.emitsLight = emitsLight;
+            this.lightLevel = lightLevel;
+        }
+
+        public static BlockProperties solid(float hardness) {
+            return new BlockProperties(hardness, false, false, false, 0);
+        }
+
+        public static BlockProperties transparent(float hardness) {
+            return new BlockProperties(hardness, false, true, false, 0);
+        }
+
+        public static BlockProperties plant(float hardness) {
+            return new BlockProperties(hardness, true, true, false, 0);
+        }
+
+        public static BlockProperties ore(float hardness) {
+            return new BlockProperties(hardness, false, false, false, 0);
+        }
+    }
+
+    public BlockRegistry() {
+        initializeBlocks();
+    }
+
+    private void initializeBlocks() {
+        // Basic blocks
+        registerBlock("stone", "solid", allTextures("stone_generic"), BlockProperties.solid(1.5f));
+        registerBlock("dirt", "solid", allTextures("dirt"), BlockProperties.solid(0.5f));
+        registerBlock("grass", "solid", topBottomSide("grass_top", "dirt", "grass_side"), BlockProperties.solid(0.6f));
+        registerBlock("granite", "solid", allTextures("granite"), BlockProperties.solid(1.5f));
+        registerBlock("granite_bricks", "solid", allTextures("granite_bricks"), BlockProperties.solid(1.5f));
+        registerBlock("diorite", "solid", allTextures("diorite"), BlockProperties.solid(1.5f));
+        registerBlock("diorite_dirty", "solid", allTextures("diorite_dirty"), BlockProperties.solid(1.5f));
+        registerBlock("gabbro", "solid", allTextures("gabbro"), BlockProperties.solid(1.5f));
+        registerBlock("basalt", "solid", allTextures("basalt"), BlockProperties.solid(1.25f));
+        registerBlock("basalt_flow", "solid", allTextures("basalt_flow"), BlockProperties.solid(1.25f));
+        registerBlock("rhyolite", "solid", allTextures("rhyolite"), BlockProperties.solid(1.5f));
+        registerBlock("rhyolite_tiles", "solid", allTextures("rhyolite_tiles"), BlockProperties.solid(1.5f));
+        registerBlock("schist", "solid", allTextures("schist"), BlockProperties.solid(1.2f));
+        registerBlock("slate", "solid", allTextures("slate"), BlockProperties.solid(1.5f));
+        registerBlock("slate_tiles", "solid", allTextures("slate_tiles"), BlockProperties.solid(1.5f));
+
+        // Sedimentary blocks
+        registerBlock("limestone", "solid", allTextures("limestone"), BlockProperties.solid(0.8f));
+        registerBlock("limestone_bricks", "solid", allTextures("limestone_bricks"), BlockProperties.solid(1.5f));
+        registerBlock("sandstone", "solid", allTextures("sandstone"), BlockProperties.solid(0.8f));
+        registerBlock("sandstone_bricks", "solid", allTextures("sandstone_bricks"), BlockProperties.solid(1.5f));
+        registerBlock("sandstone_carved", "solid", allTextures("sandstone_carved"), BlockProperties.solid(0.8f));
+        registerBlock("sandstone_tiles", "solid", allTextures("sandstone_tiles"), BlockProperties.solid(1.5f));
+
+        // Marble blocks
+        registerBlock("marble", "solid", allTextures("marble"), BlockProperties.solid(1.5f));
+        registerBlock("marble_bricks", "solid", allTextures("marble_bricks"), BlockProperties.solid(1.5f));
+        registerBlock("marble_bricks2", "solid", allTextures("marble_bricks2"), BlockProperties.solid(1.5f));
+        registerBlock("marble_bricks3", "solid", allTextures("marble_bricks3"), BlockProperties.solid(1.5f));
+
+        // Serpentine blocks
+        registerBlock("serpentine", "solid", allTextures("serpentine"), BlockProperties.solid(1.5f));
+        registerBlock("serpentine_bricks", "solid", allTextures("serpentine_bricks"), BlockProperties.solid(1.5f));
+        registerBlock("serpentine_carved", "solid", allTextures("serpentine_carved"), BlockProperties.solid(1.5f));
+
+        // Soil blocks
+        registerBlock("farmland", "solid", allTextures("farmland"), BlockProperties.solid(0.6f));
+        registerBlock("mud", "solid", allTextures("mud"), BlockProperties.solid(0.5f));
+        registerBlock("mud_bricks", "solid", allTextures("mud_bricks"), BlockProperties.solid(1.5f));
+        registerBlock("mud_cracked", "solid", allTextures("mud_cracked"), BlockProperties.solid(0.4f));
+
+        // Wood logs
+        registerBlock("oak_log", "log", topBottomSide("oak_log_top", "oak_log_top", "oak_log_side"), new BlockProperties(2.0f, true, false, false, 0));
+        registerBlock("beech_log", "log", topBottomSide("beech_log_top", "beech_log_top", "beech_log_side"), new BlockProperties(2.0f, true, false, false, 0));
+        registerBlock("eucalyptus_log", "log", topBottomSide("eucalyptus_log_top", "eucalyptus_log_top", "eucalyptus_log_side"), new BlockProperties(2.0f, true, false, false, 0));
+        registerBlock("maple_log", "log", topBottomSide("maple_log_top", "maple_log_top", "maple_log_side"), new BlockProperties(2.0f, true, false, false, 0));
+        registerBlock("pine_log", "log", topBottomSide("pine_log_top", "pine_log_top", "pine_log_side"), new BlockProperties(2.0f, true, false, false, 0));
+
+        // Wood planks
+        registerBlock("oak_planks", "solid", allTextures("oak_planks"), new BlockProperties(2.0f, true, false, false, 0));
+        registerBlock("beech_planks", "solid", allTextures("beech_planks"), new BlockProperties(2.0f, true, false, false, 0));
+        registerBlock("eucalyptus_planks", "solid", allTextures("eucalyptus_planks"), new BlockProperties(2.0f, true, false, false, 0));
+        registerBlock("maple_planks", "solid", allTextures("maple_planks"), new BlockProperties(2.0f, true, false, false, 0));
+        registerBlock("pine_planks", "solid", allTextures("pine_planks"), new BlockProperties(2.0f, true, false, false, 0));
+
+        // Leaves
+        registerBlock("oak_leaves", "leaves", allTextures("oak_leaves"), new BlockProperties(0.2f, true, true, false, 0));
+        registerBlock("beech_leaves", "leaves", allTextures("beech_leaves"), new BlockProperties(0.2f, true, true, false, 0));
+        registerBlock("eucalyptus_leaves", "leaves", allTextures("eucalyptus_leaves"), new BlockProperties(0.2f, true, true, false, 0));
+        registerBlock("maple_leaves", "leaves", allTextures("maple_leaves"), new BlockProperties(0.2f, true, true, false, 0));
+        registerBlock("pine_leaves", "leaves", allTextures("pine_leaves"), new BlockProperties(0.2f, true, true, false, 0));
+
+        // Ores and special blocks
+        registerBlock("amethyst", "ore", allTextures("amethyst"), BlockProperties.ore(1.5f));
+        registerBlock("obsidian", "solid", allTextures("obsidian"), BlockProperties.solid(50.0f));
+
+        // Coral blocks
+        registerBlock("coral_block_brain", "solid", allTextures("coral_block_brain"), BlockProperties.solid(1.5f));
+        registerBlock("coral_block_brain_bleached", "solid", allTextures("coral_block_brain_bleached"), BlockProperties.solid(1.5f));
+        registerBlock("coral_block_cauliflower", "solid", allTextures("coral_block_cauliflower"), BlockProperties.solid(1.5f));
+        registerBlock("coral_block_cauliflower_bleached", "solid", allTextures("coral_block_cauliflower_bleached"), BlockProperties.solid(1.5f));
+        registerBlock("coral_block_pore", "solid", allTextures("coral_block_pore"), BlockProperties.solid(1.5f));
+        registerBlock("coral_block_pore_bleached", "solid", allTextures("coral_block_pore_bleached"), BlockProperties.solid(1.5f));
+        registerBlock("coral_block_star", "solid", allTextures("coral_block_star"), BlockProperties.solid(1.5f));
+        registerBlock("coral_block_star_bleached", "solid", allTextures("coral_block_star_bleached"), BlockProperties.solid(1.5f));
+
+        // Cobblestone variants
+        registerBlock("cobblestone", "solid", allTextures("cobblestone"), BlockProperties.solid(2.0f));
+        registerBlock("cobblestone_bricks", "solid", allTextures("cobblestone_bricks"), BlockProperties.solid(2.0f));
+        registerBlock("cobblestone_bricks_mossy", "solid", allTextures("cobblestone_bricks_mossy"), BlockProperties.solid(2.0f));
+        registerBlock("cobblestone_mossy", "solid", allTextures("cobblestone_mossy"), BlockProperties.solid(2.0f));
+
+        // Ice blocks
+        registerBlock("ice_glacier", "transparent", allTextures("ice_glacier"), BlockProperties.transparent(0.5f));
+        registerBlock("ice_icicles", "transparent", allTextures("ice_icicles"), BlockProperties.transparent(0.5f));
+
+        // Glass
+        registerBlock("glass", "transparent", allTextures("glass"), BlockProperties.transparent(0.3f));
+
+        // Sand variants
+        registerBlock("sand_ugly", "solid", allTextures("sand_ugly"), BlockProperties.solid(0.5f));
+        registerBlock("sand_ugly_2", "solid", allTextures("sand_ugly_2"), BlockProperties.solid(0.5f));
+        registerBlock("sand_ugly_3", "solid", allTextures("sand_ugly_3"), BlockProperties.solid(0.5f));
+
+        // Gravel and snow
+        registerBlock("gravel", "solid", allTextures("gravel"), BlockProperties.solid(0.6f));
+        registerBlock("snow", "solid", allTextures("snow"), BlockProperties.solid(0.1f));
+
+        // Hay block
+        registerBlock("hay_block", "solid", topBottomSide("hay_top", "hay_top", "hay_side"), new BlockProperties(0.5f, true, false, false, 0));
+
+        // Ore variants
+        registerBlock("stone_generic_ore_crystalline", "ore", allTextures("stone_generic_ore_crystalline"), BlockProperties.ore(3.0f));
+        registerBlock("stone_generic_ore_nuggets", "ore", allTextures("stone_generic_ore_nuggets"), BlockProperties.ore(3.0f));
+
+        LoggerHelper.betterPrint("Initialized " + blocks.size() + " block types", LoggerHelper.LogType.RENDERING);
+    }
+
+    public void registerBlock(String name, String type, Map<Direction, String> textures, BlockProperties properties) {
+        blocks.put(name, new BlockData(type, textures, properties));
         idToName.put(nextID, name);
         nextID++;
+    }
+
+    private Map<Direction, String> allTextures(String texture) {
+        Map<Direction, String> textures = new EnumMap<>(Direction.class);
+        for (Direction dir : Direction.values()) {
+            textures.put(dir, texture);
+        }
+        return textures;
+    }
+
+    private Map<Direction, String> topBottomSide(String top, String bottom, String sides) {
+        Map<Direction, String> textures = new EnumMap<>(Direction.class);
+        textures.put(Direction.UP, top);
+        textures.put(Direction.DOWN, bottom);
+        textures.put(Direction.NORTH, sides);
+        textures.put(Direction.SOUTH, sides);
+        textures.put(Direction.EAST, sides);
+        textures.put(Direction.WEST, sides);
+        return textures;
     }
 
     public String getTexture(String name, Direction dir) {
@@ -41,6 +202,12 @@ public class BlockRegistry {
         BlockData data = blocks.get(name);
         if (data == null) return null;
         return data.type;
+    }
+
+    public BlockProperties getProperties(String name) {
+        BlockData data = blocks.get(name);
+        if (data == null) return null;
+        return data.properties;
     }
 
     public String getNameFromID(int id) {
@@ -57,105 +224,16 @@ public class BlockRegistry {
         return 0; // Not found, return air
     }
 
-    public void loadBlocks(String folderPath) {
-        try {
-            List<String> resources = listResourceFiles(folderPath);
-            for (String res : resources) {
-                loadBlockFile(folderPath + "/" + res);
-            }
-        } catch (Exception e) {
-            System.err.println("Error loading blocks from " + folderPath + ": " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    private void loadBlockFile(String resourcePath) {
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
-            if (in == null) {
-                System.err.println("Could not find resource: " + resourcePath);
-                return;
-            }
-
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(in))) {
-                String json = br.lines().map(String::trim).collect(Collectors.joining());
-                String globalName = parseValue(json, "global");
-                if (globalName == null) {
-                    System.err.println("No 'global' name found in " + resourcePath);
-                    return;
-                }
-
-                Map<String, String> texturesMap = parseTextures(json);
-
-                Map<Direction, String> faceTextures = new EnumMap<>(Direction.class);
-                if (texturesMap.containsKey("all")) {
-                    for (Direction dir : Direction.values()) {
-                        faceTextures.put(dir, texturesMap.get("all"));
-                    }
-                } else {
-                    String rest = texturesMap.getOrDefault("rest", null);
-                    for (Direction dir : Direction.values()) {
-                        String key = dir.name().toLowerCase();
-                        if (texturesMap.containsKey(key)) {
-                            faceTextures.put(dir, texturesMap.get(key));
-                        } else if (rest != null) {
-                            faceTextures.put(dir, rest);
-                        }
-                    }
-                }
-                registerBlock(globalName, globalName, faceTextures);
-                //LoggerHelper.betterPrint("Registered block: " + globalName + " with ID: " + (nextID - 1), LoggerHelper.LogType.RENDERING);
-            }
-        } catch (Exception e) {
-            System.err.println("Error loading block file " + resourcePath + ": " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    private String parseValue(String json, String key) {
-        String pattern = "\"" + key + "\"\\s*:\\s*\"([^\"]+)\"";
-        return matchRegex(json, pattern);
-    }
-
-    private Map<String, String> parseTextures(String json) {
-        Map<String, String> map = new HashMap<>();
-        String texturesJson = matchRegex(json, "\"textures\"\\s*:\\s*\\{([^}]*)\\}");
-        if (texturesJson == null) return map;
-
-        String[] entries = texturesJson.split(",");
-        for (String entry : entries) {
-            String[] kv = entry.split(":");
-            if (kv.length != 2) continue;
-            String key = kv[0].replaceAll("\"", "").trim();
-            String value = kv[1].replaceAll("\"", "").trim();
-            map.put(key, value);
-        }
-        return map;
-    }
-
     public BlockData get(String name) {
         return blocks.get(name);
     }
 
-    private String matchRegex(String input, String regex) {
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile(regex).matcher(input);
-        return m.find() ? m.group(1) : null;
+    public Collection<String> getAllBlockNames() {
+        return blocks.keySet();
     }
 
-    private List<String> listResourceFiles(String path) throws IOException, URISyntaxException {
-        URL dirURL = getClass().getClassLoader().getResource(path);
-        if (dirURL != null && dirURL.getProtocol().equals("file")) {
-            return Arrays.asList(new File(dirURL.toURI()).list());
-        }
-        if (dirURL != null && dirURL.getProtocol().equals("jar")) {
-            String jarPath = dirURL.getPath().substring(5, dirURL.getPath().indexOf("!"));
-            try (JarFile jar = new JarFile(jarPath)) {
-                return jar.stream()
-                        .map(JarEntry::getName)
-                        .filter(name -> name.startsWith(path + "/") && name.endsWith(".json"))
-                        .map(name -> name.substring(name.lastIndexOf("/") + 1))
-                        .collect(Collectors.toList());
-            }
-        }
-        throw new UnsupportedOperationException("Cannot list files for path: " + path);
+    public int getBlockCount() {
+        return blocks.size();
     }
+
 }
