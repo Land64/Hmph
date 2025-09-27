@@ -204,69 +204,95 @@ public class DimensionCreator {
     }
 
     private int determineBlockType(int worldX, int worldY, int worldZ, int surfaceHeight, String biome) {
-        int stoneId = registry.getIDFromName("stone");
-        int dirtId = registry.getIDFromName("dirt");
-        int grassId = registry.getIDFromName("grass");
-        int sandId = registry.getIDFromName("sand_ugly");
-        int sandstoneId = registry.getIDFromName("sandstone");
-        int graniteId = registry.getIDFromName("granite");
-        int marbleId = registry.getIDFromName("marble");
-        int snowId = registry.getIDFromName("snow");
-
-        if (stoneId == 0) stoneId = 1;
-        if (dirtId == 0) dirtId = stoneId;
-        if (grassId == 0) grassId = stoneId;
-        if (sandId == 0) sandId = stoneId;
+        // Get block IDs with proper fallback handling
+        int stoneId = getBlockIdSafe("stone", 1);
+        int dirtId = getBlockIdSafe("dirt", stoneId);
+        int grassId = getBlockIdSafe("grass", stoneId);
+        int sandId = getBlockIdSafe("sand_ugly", stoneId);
+        int sandstoneId = getBlockIdSafe("sandstone", stoneId);
+        int graniteId = getBlockIdSafe("granite", stoneId);
+        int marbleId = getBlockIdSafe("marble", stoneId);
+        int snowId = getBlockIdSafe("snow", stoneId);
+        int basaltId = getBlockIdSafe("basalt", stoneId);
+        int mudId = getBlockIdSafe("mud", dirtId);
+        int oakLeavesId = getBlockIdSafe("oak_leaves", stoneId);
 
         if (worldY == 0) {
             return stoneId;
         }
 
-        if (worldY < surfaceHeight - 5) {
+        if (worldY < surfaceHeight - 8) {
             if (worldY < 16) {
                 double oreChance = oreNoise.noise(worldX * 0.1, worldY * 0.1, worldZ * 0.1);
-                if (oreChance > 0.8) {
-                    return graniteId != 0 ? graniteId : stoneId;
-                } else if (oreChance > 0.7) {
-                    return marbleId != 0 ? marbleId : stoneId;
+                if (oreChance > 0.85) {
+                    return graniteId;
+                } else if (oreChance > 0.75) {
+                    return marbleId;
                 }
             }
-            return stoneId;
+
+            switch (biome) {
+                case "volcanic":
+                    return basaltId;
+                case "mountains":
+                    return graniteId;
+                case "marble_caves":
+                    return marbleId;
+                default:
+                    return stoneId;
+            }
         }
 
-        // Surface layers based on biome
         if (worldY == surfaceHeight) {
-            // Top surface
             switch (biome) {
                 case "desert":
                     return sandId;
                 case "mountains":
                     if (surfaceHeight > 100) {
-                        return snowId != 0 ? snowId : stoneId;
+                        return snowId;
                     } else {
                         return stoneId;
                     }
                 case "swamp":
-                    return dirtId;
+                    return mudId;
+                case "volcanic":
+                    return basaltId;
+                case "taiga":
+                    return snowId;
                 default:
                     return grassId;
             }
-        } else if (worldY >= surfaceHeight - 3) {
+        } else if (worldY >= surfaceHeight - 4 && worldY < surfaceHeight) {
             switch (biome) {
                 case "desert":
-                    if (worldY >= surfaceHeight - 1) {
+                    if (worldY >= surfaceHeight - 2) {
                         return sandId;
                     } else {
-                        return sandstoneId != 0 ? sandstoneId : stoneId;
+                        return sandstoneId;
                     }
                 case "mountains":
                     return stoneId;
+                case "swamp":
+                    return mudId;
+                case "volcanic":
+                    return basaltId;
                 default:
                     return dirtId;
             }
         }
 
         return stoneId;
+    }
+
+    /**
+     * Helper method to safely get block IDs with fallback
+     */
+    private int getBlockIdSafe(String blockName, int fallback) {
+        int id = registry.getIDFromName(blockName);
+        if (id == 0) {
+            return fallback;
+        }
+        return id;
     }
 
     private void generateSurfaceFeatures(int[][][] blocks, int x, int z, int surfaceHeight, String biome, int worldX, int worldZ) {

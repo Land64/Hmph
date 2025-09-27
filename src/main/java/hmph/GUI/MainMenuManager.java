@@ -44,17 +44,13 @@ public class MainMenuManager {
         CREDITS
     }
 
-    /**
-     * Create menu manager
-     */
+    /** Create menu manager */
     public MainMenuManager(Hmph renderWindow) {
         this.renderWindow = renderWindow;
         this.buttons = new ArrayList<>();
     }
 
-    /**
-     * Initialize menu system
-     */
+    /** Initialize menu system */
     public void initialize() throws Exception {
         ShaderProgram textShader = renderWindow.getShaderManager().getShader("text");
         textRenderer = new TextRenderer("assets/font.otf", 36, textShader, REFERENCE_WIDTH, REFERENCE_HEIGHT);
@@ -62,7 +58,20 @@ public class MainMenuManager {
 
         backgroundMusic = new AudioManager();
         if (backgroundMusic.initialize()) {
-            backgroundMusic.loadSound("MM-1", "assets/sounds/music/MenuTheme.wav");
+            backgroundMusic.setMasterVolume(0.3f);
+            boolean theme1Loaded = backgroundMusic.loadSound("MM-THEME", "assets/sounds/music/MenuTheme.wav");
+            boolean theme2Loaded = backgroundMusic.loadSound("MM-THEME2", "assets/sounds/music/MenuTheme2.wav");
+
+            if (theme1Loaded || theme2Loaded) {
+                List<String> playlistSongs = new ArrayList<>();
+                if (theme1Loaded) playlistSongs.add("MM-THEME");
+                if (theme2Loaded) playlistSongs.add("MM-THEME2");
+
+                backgroundMusic.createPlaylist("MENU-PLAYLIST", playlistSongs, true);
+                LoggerHelper.betterPrint("Background music playlist created with " + playlistSongs.size() + " songs", LoggerHelper.LogType.INFO);
+            } else {
+                LoggerHelper.betterPrint("Failed to load any background music", LoggerHelper.LogType.ERROR);
+            }
         }
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -85,9 +94,6 @@ public class MainMenuManager {
         createMainMenuButtons(renderWindow.getShaderManager().getShader("textured"), renderWindow.getWindowHandle());
     }
 
-    /**
-     * Create main menu buttons
-     */
     private void createMainMenuButtons(ShaderProgram shader, long windowHandle) throws Exception {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer w = stack.mallocInt(1);
@@ -97,22 +103,26 @@ public class MainMenuManager {
             currentScreenHeight = h.get(0);
         }
 
-        float centerX = REFERENCE_WIDTH/2f-400f;
-        float buttonWidth = 800f;
-        float buttonHeight = 120f;
-        float buttonSpacing = 150f;
-        float startY = REFERENCE_HEIGHT/2f-200f;
+        float scaleX = currentScreenWidth / REFERENCE_WIDTH;
+        float scaleY = currentScreenHeight / REFERENCE_HEIGHT;
+        float scale = Math.min(scaleX, scaleY);
+
+        float centerX = (REFERENCE_WIDTH/2f - 400f) * scale;
+        float buttonWidth = 800f * scale;
+        float buttonHeight = 120f * scale;
+        float buttonSpacing = 150f * scale;
+        float startY = (REFERENCE_HEIGHT/2f - 200f) * scale;
 
         playButton = new ButtonRenderer(
                 "assets/images/gui/button_rectangle_depth_gradient.png",
                 "assets/images/gui/button_rectangle_depth_gloss.png",
                 "assets/images/gui/button_rectangle_depth_border.png",
                 shader, windowHandle,
-                REFERENCE_WIDTH, REFERENCE_HEIGHT,
+                currentScreenWidth, currentScreenHeight,
                 centerX, startY, buttonWidth, buttonHeight
         );
         playButton.setTextRenderer(textRenderer);
-        TextObject playText = new TextObject("PLAY GAME", centerX+buttonWidth/2f-60f, startY+buttonHeight/2f+10f);
+        TextObject playText = new TextObject("PLAY GAME", centerX+buttonWidth/2f-60f*scale, startY+buttonHeight/2f+10f*scale);
         playButton.setText(playText);
         playButton.setTextColor(0f,0f,0f,1f, playText);
         playButton.setClickListener(this::startGame);
@@ -123,11 +133,11 @@ public class MainMenuManager {
                 "assets/images/gui/button_rectangle_depth_gloss.png",
                 "assets/images/gui/button_rectangle_depth_border.png",
                 shader, windowHandle,
-                REFERENCE_WIDTH, REFERENCE_HEIGHT,
+                currentScreenWidth, currentScreenHeight,
                 centerX, startY+buttonSpacing, buttonWidth, buttonHeight
         );
         settingsButton.setTextRenderer(textRenderer);
-        TextObject settingsText = new TextObject("SETTINGS", centerX+buttonWidth/2f-45f, startY+buttonSpacing+buttonHeight/2f+10f);
+        TextObject settingsText = new TextObject("SETTINGS", centerX+buttonWidth/2f-45f*scale, startY+buttonSpacing+buttonHeight/2f+10f*scale);
         settingsButton.setText(settingsText);
         settingsButton.setTextColor(0f,0f,0f,1f, settingsText);
         settingsButton.setClickListener(this::showSettings);
@@ -138,11 +148,11 @@ public class MainMenuManager {
                 "assets/images/gui/button_rectangle_depth_gloss.png",
                 "assets/images/gui/button_rectangle_depth_border.png",
                 shader, windowHandle,
-                REFERENCE_WIDTH, REFERENCE_HEIGHT,
+                currentScreenWidth, currentScreenHeight,
                 centerX, startY+buttonSpacing*2, buttonWidth, buttonHeight
         );
         creditsButton.setTextRenderer(textRenderer);
-        TextObject creditsText = new TextObject("CREDITS", centerX+buttonWidth/2f-40f, startY+buttonSpacing*2+buttonHeight/2f+10f);
+        TextObject creditsText = new TextObject("CREDITS", centerX+buttonWidth/2f-40f*scale, startY+buttonSpacing*2+buttonHeight/2f+10f*scale);
         creditsButton.setText(creditsText);
         creditsButton.setTextColor(0f,0f,0f,1f, creditsText);
         creditsButton.setClickListener(this::showCredits);
@@ -153,20 +163,18 @@ public class MainMenuManager {
                 "assets/images/gui/button_rectangle_depth_gloss.png",
                 "assets/images/gui/button_rectangle_depth_border.png",
                 shader, windowHandle,
-                REFERENCE_WIDTH, REFERENCE_HEIGHT,
+                currentScreenWidth, currentScreenHeight,
                 centerX, startY+buttonSpacing*3, buttonWidth, buttonHeight
         );
         exitButton.setTextRenderer(textRenderer);
-        TextObject exitText = new TextObject("EXIT GAME", centerX+buttonWidth/2f-55f, startY+buttonSpacing*3+buttonHeight/2f+10f);
+        TextObject exitText = new TextObject("EXIT GAME", centerX+buttonWidth/2f-55f*scale, startY+buttonSpacing*3+buttonHeight/2f+10f*scale);
         exitButton.setText(exitText);
         exitButton.setTextColor(0f,0f,0f,1f, exitText);
         exitButton.setClickListener(this::exitGame);
         buttons.add(exitButton);
     }
 
-    /**
-     * Update menu state
-     */
+    /** Update menu state */
     public void update(double mouseX, double mouseY, boolean mousePressed) {
         if (!menuVisible) return;
         this.mouseX = mouseX;
@@ -177,9 +185,7 @@ public class MainMenuManager {
         }
     }
 
-    /**
-     * Render menu
-     */
+    /** Render menu */
     public void render() {
         if (!menuVisible) return;
         renderBackground();
@@ -197,17 +203,11 @@ public class MainMenuManager {
         }
     }
 
-    /**
-     * Render background
-     */
     private void renderBackground() {
     }
 
-    /**
-     * Render title
-     */
     private void renderTitle() {
-        if (titleRenderer!=null && currentState==MenuState.MAIN) {
+        if (titleRenderer != null && currentState == MenuState.MAIN) {
             String title = "HMPH GAME";
             float titleWidth = titleRenderer.getTextWidth(title);
             float titleX = (currentScreenWidth-titleWidth)/2f;
@@ -216,36 +216,27 @@ public class MainMenuManager {
         }
     }
 
-    /**
-     * Render main menu
-     */
     private void renderMainMenu() {
         for (ButtonRenderer button : buttons) {
             button.render();
         }
-        if (textRenderer!=null) {
+        if (textRenderer != null) {
             String versionText = "Version 1.0.0";
             float versionY = currentScreenHeight-80f;
             textRenderer.renderText(versionText, 50f, versionY);
         }
     }
 
-    /**
-     * Render settings menu
-     */
     private void renderSettingsMenu() {
-        if (textRenderer!=null) {
+        if (textRenderer != null) {
             textRenderer.renderText("SETTINGS MENU", REFERENCE_WIDTH/2f-150f, 300f);
             textRenderer.renderText("(Settings implementation goes here)", REFERENCE_WIDTH/2f-200f, 400f);
             textRenderer.renderText("Press ESC to return", REFERENCE_WIDTH/2f-120f, 500f);
         }
     }
 
-    /**
-     * Render credits menu
-     */
     private void renderCreditsMenu() {
-        if (textRenderer!=null) {
+        if (textRenderer != null) {
             textRenderer.renderText("CREDITS", REFERENCE_WIDTH/2f-80f, 300f);
             textRenderer.renderText("Game Engine: HMPH", REFERENCE_WIDTH/2f-100f, 400f);
             textRenderer.renderText("Created with Java & OpenGL", REFERENCE_WIDTH/2f-150f, 450f);
@@ -253,42 +244,28 @@ public class MainMenuManager {
         }
     }
 
-    /**
-     * Start game
-     */
     private void startGame() {
         renderWindow.startGame();
     }
 
-    /**
-     * Show settings
-     */
     private void showSettings() {
         previousState = currentState;
         currentState = MenuState.SETTINGS;
     }
 
-    /**
-     * Show credits
-     */
     private void showCredits() {
         previousState = currentState;
         currentState = MenuState.CREDITS;
     }
 
-    /**
-     * Exit game
-     */
     private void exitGame() {
         org.lwjgl.glfw.GLFW.glfwSetWindowShouldClose(renderWindow.getWindowHandle(), true);
     }
 
-    /**
-     * Handle key input
-     */
+    /** Handle key input */
     public void handleKeyInput(int key, int action) {
-        if (key==org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && action==org.lwjgl.glfw.GLFW.GLFW_PRESS) {
-            if (currentState!=MenuState.MAIN) {
+        if (key == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && action == org.lwjgl.glfw.GLFW.GLFW_PRESS) {
+            if (currentState != MenuState.MAIN) {
                 currentState = MenuState.MAIN;
             } else {
                 toggleMenu();
@@ -296,37 +273,33 @@ public class MainMenuManager {
         }
     }
 
-    /**
-     * Toggle menu visibility
-     */
+    /** Toggle menu visibility */
     public void toggleMenu() {
         menuVisible = !menuVisible;
         LoggerHelper.betterPrint("Main Menu "+(menuVisible ? "shown" : "hidden"), LoggerHelper.LogType.INFO);
     }
 
-    /**
-     * Set menu visibility
-     */
+    /** Set menu visibility */
     public void setMenuVisible(boolean visible) {
         this.menuVisible = visible;
 
-        if (menuVisible) {
-            backgroundMusic.playSound("MM-1", 0.1f, true);
-        } else {
-            backgroundMusic.stopSound("MM-1");
+        if (backgroundMusic != null) {
+            if (visible) {
+                LoggerHelper.betterPrint("Starting background music playlist", LoggerHelper.LogType.DEBUG);
+                backgroundMusic.playPlaylist("MENU-PLAYLIST");
+            } else {
+                LoggerHelper.betterPrint("Stopping background music playlist", LoggerHelper.LogType.DEBUG);
+                backgroundMusic.stopPlaylist();
+            }
         }
     }
 
-    /**
-     * Check if menu is visible
-     */
+    /** Check if menu is visible */
     public boolean isMenuVisible() {
         return menuVisible;
     }
 
-    /**
-     * Check if mouse is over menu
-     */
+    /** Check if mouse is over menu */
     public boolean isMouseOverMenu() {
         if (!menuVisible) return false;
         for (ButtonRenderer button : buttons) {
@@ -337,9 +310,7 @@ public class MainMenuManager {
         return false;
     }
 
-    /**
-     * Handle window resize
-     */
+    /** Handle window resize */
     public void onWindowResize() {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer w = stack.mallocInt(1);
@@ -349,33 +320,66 @@ public class MainMenuManager {
         }
     }
 
-    /**
-     * Handle window resize with dimensions
-     */
+    /** Handle window resize with dimensions */
     public void onWindowResize(float newWidth, float newHeight) {
         this.currentScreenWidth = newWidth;
         this.currentScreenHeight = newHeight;
 
-        for (ButtonRenderer button : buttons) {
-            button.updateScreenSize(newWidth, newHeight);
+        float scaleX = currentScreenWidth / REFERENCE_WIDTH;
+        float scaleY = currentScreenHeight / REFERENCE_HEIGHT;
+        float scale = Math.min(scaleX, scaleY);
+
+        float centerX = (REFERENCE_WIDTH/2f - 400f) * scale;
+        float buttonWidth = 800f * scale;
+        float buttonHeight = 120f * scale;
+        float buttonSpacing = 150f * scale;
+        float startY = (REFERENCE_HEIGHT/2f - 200f) * scale;
+
+        if (playButton != null) {
+            playButton.updateScreenSize(newWidth, newHeight);
+            playButton.updatePosition(centerX, startY, buttonWidth, buttonHeight);
+            TextObject playText = new TextObject("PLAY GAME", centerX+buttonWidth/2f-60f*scale, startY+buttonHeight/2f+10f*scale);
+            playButton.setText(playText);
         }
 
-        if (textRenderer!=null) {
+        if (settingsButton != null) {
+            settingsButton.updateScreenSize(newWidth, newHeight);
+            settingsButton.updatePosition(centerX, startY+buttonSpacing, buttonWidth, buttonHeight);
+            TextObject settingsText = new TextObject("SETTINGS", centerX+buttonWidth/2f-45f*scale, startY+buttonSpacing+buttonHeight/2f+10f*scale);
+            settingsButton.setText(settingsText);
+        }
+
+        if (creditsButton != null) {
+            creditsButton.updateScreenSize(newWidth, newHeight);
+            creditsButton.updatePosition(centerX, startY+buttonSpacing*2, buttonWidth, buttonHeight);
+            TextObject creditsText = new TextObject("CREDITS", centerX+buttonWidth/2f-40f*scale, startY+buttonSpacing*2+buttonHeight/2f+10f*scale);
+            creditsButton.setText(creditsText);
+        }
+
+        if (exitButton != null) {
+            exitButton.updateScreenSize(newWidth, newHeight);
+            exitButton.updatePosition(centerX, startY+buttonSpacing*3, buttonWidth, buttonHeight);
+            TextObject exitText = new TextObject("EXIT GAME", centerX+buttonWidth/2f-55f*scale, startY+buttonSpacing*3+buttonHeight/2f+10f*scale);
+            exitButton.setText(exitText);
+        }
+
+        if (textRenderer != null) {
             textRenderer.setScreenSize(newWidth, newHeight);
         }
-        if (titleRenderer!=null) {
+        if (titleRenderer != null) {
             titleRenderer.setScreenSize(newWidth, newHeight);
         }
     }
 
-    /**
-     * Cleanup menu resources
-     */
+    /** Cleanup menu resources */
     public void cleanup() {
-        if (textRenderer!=null) {
+        if (backgroundMusic != null) {
+            backgroundMusic.cleanup();
+        }
+        if (textRenderer != null) {
             textRenderer.cleanup();
         }
-        if (titleRenderer!=null) {
+        if (titleRenderer != null) {
             titleRenderer.cleanup();
         }
         for (ButtonRenderer button : buttons) {

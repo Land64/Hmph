@@ -2,8 +2,6 @@ package hmph.math;
 
 import java.nio.FloatBuffer;
 
-
-// You can kill me before explaining this.
 public class Matrix4f {
     public float[] m = new float[16];
 
@@ -39,8 +37,6 @@ public class Matrix4f {
         temp.m[14] = z;
         return multiply(temp);
     }
-
-
 
     public Matrix4f rotateX(float angle) {
         float cos = (float) Math.cos(angle);

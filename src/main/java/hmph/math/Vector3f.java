@@ -1,7 +1,5 @@
 package hmph.math;
 
-
-//Same with vector3!
 public class Vector3f {
     public float x, y, z;
 
@@ -79,6 +77,20 @@ public class Vector3f {
 
     public float dot(Vector3f other) {
         return x * other.x + y * other.y + z * other.z;
+    }
+
+    public float distance(Vector3f other) {
+        float dx = x - other.x;
+        float dy = y - other.y;
+        float dz = z - other.z;
+        return (float) Math.sqrt(dx*dx + dy*dy + dz*dz);
+    }
+
+    public float distanceSquared(Vector3f other) {
+        float dx = x - other.x;
+        float dy = y - other.y;
+        float dz = z - other.z;
+        return dx*dx + dy*dy + dz*dz;
     }
 
     @Override

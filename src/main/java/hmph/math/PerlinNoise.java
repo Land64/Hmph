@@ -2,7 +2,6 @@ package hmph.math;
 
 import java.util.Random;
 
-//Along with the PerlinNoise class, this is one of the most complex classes I have ever made.
 public class PerlinNoise {
     private final int[] permutation;
 

@@ -1,6 +1,5 @@
 package hmph.math;
 
-//Vector3 is hoesntly pretty easy once you know of it.
 public class Vector2f {
     public float x, y;
 

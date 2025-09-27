@@ -4,7 +4,7 @@ import hmph.math.Matrix4f;
 import hmph.math.Vector3f;
 import hmph.rendering.shaders.ShaderManager;
 import hmph.rendering.shaders.ShaderProgram;
-import hmph.rendering.Camera;
+import hmph.rendering.camera.Camera;
 
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL15.*;

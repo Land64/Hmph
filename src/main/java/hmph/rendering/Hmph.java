@@ -4,26 +4,18 @@ import hmph.GUI.text.*;
 import hmph.GUI.GUIManager;
 import hmph.GUI.MainMenuManager;
 import hmph.math.Vector3f;
+import hmph.rendering.camera.Camera;
 import hmph.rendering.shaders.ShaderProgram;
 import hmph.rendering.shapes.CubeRenderer;
-import hmph.rendering.world.ChunkBase;
-import hmph.rendering.world.ChunkManagerExtension;
-import hmph.rendering.world.Direction;
+import hmph.rendering.world.chunk.ChunkBase;
+import hmph.rendering.world.chunk.ChunkManagerExtension;
+import hmph.rendering.world.chunk.optimized.OptimizedChunkManager;
 import hmph.util.TextureManager;
 import hmph.util.debug.LoggerHelper;
 import hmph.rendering.shaders.ShaderManager;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
@@ -65,7 +57,7 @@ public class Hmph {
     private TextureManager textureManager;
     private Map<Integer, KeyAction> keyActions = new HashMap<>();
     private ChunkManagerExtension chunkManager;
-    private int renderDistance = 5;
+    private int renderDistance = 16;
     private SkyboxRenderer skyboxRenderer;
     private float gameTime = 0.0f;
     private Player player;
@@ -313,7 +305,6 @@ public class Hmph {
         camera.lookAt(new Vector3f(8, 0, 8));
 
         BlockRegistry registry = new BlockRegistry();
-
         String testBlock = registry.getNameFromID(1);
         if (testBlock == null) {
             System.err.println("ERROR: Block registry failed to initialize!");
@@ -324,13 +315,17 @@ public class Hmph {
         LoggerHelper.betterPrint("First block (ID 1): " + testBlock, LoggerHelper.LogType.RENDERING);
 
         chunkManager = new ChunkManagerExtension(registry, renderDistance);
-        chunkManager.updateChunks(new Vector3f(-999, 0, -999));
 
         player = new Player(new Vector3f(0, 70, 0), chunkManager, camera);
         player.setBlockRegistry(registry);
-        chunkManager.updateChunks(player.getPosition());
 
-        LoggerHelper.betterPrint("ChunkManager initialized with render distance: " + renderDistance, LoggerHelper.LogType.RENDERING);
+        if (chunkManager instanceof ChunkManagerExtension) {
+            ((ChunkManagerExtension) chunkManager).updateChunksWithCamera(player.getPosition(), camera);
+        } else {
+            chunkManager.updateChunks(player.getPosition());
+        }
+
+        LoggerHelper.betterPrint("ChunkManagerExtension initialized with render distance: " + renderDistance, LoggerHelper.LogType.RENDERING);
     }
 
     /**
@@ -581,8 +576,27 @@ public class Hmph {
         ShaderProgram chunkShader = shaderManager.getShader("3d");
         if (chunkShader == null) return;
 
-        chunkManager.updateChunks(player.getPosition());
-        Map<Long, ChunkBase> chunks = chunkManager.getLoadedChunks();
+        if (chunkManager instanceof ChunkManagerExtension) {
+            ChunkManagerExtension extManager = (ChunkManagerExtension) chunkManager;
+            extManager.updateChunksWithCamera(player.getPosition(), camera);
+
+            Map<Long, ChunkBase> chunks = extManager.getVisibleChunks();
+
+            if (gameTime % 5.0f < 0.016f) {
+                LoggerHelper.betterPrint(extManager.getPerformanceStats(), LoggerHelper.LogType.RENDERING);
+            }
+
+            if (chunks.isEmpty()) return;
+        } else {
+            chunkManager.updateChunks(player.getPosition());
+        }
+
+        Map<Long, ChunkBase> chunks;
+        if (chunkManager instanceof ChunkManagerExtension) {
+            chunks = ((ChunkManagerExtension) chunkManager).getVisibleChunks();
+        } else {
+            chunks = chunkManager.getLoadedChunks();
+        }
 
         if (chunks.isEmpty()) return;
 
@@ -600,7 +614,7 @@ public class Hmph {
             chunkShader.bind();
 
             Matrix4f viewMatrix = camera.getViewMatrix();
-            Matrix4f projectionMatrix = camera.getProjectionMatrix((float) width/height, 0.1f, 100.0f);
+            Matrix4f projectionMatrix = camera.getProjectionMatrix((float) width/height, 0.1f, renderDistance * 16f * 1.5f);
 
             chunkShader.setUniform("view", viewMatrix);
             chunkShader.setUniform("projection", projectionMatrix);
@@ -613,9 +627,25 @@ public class Hmph {
 
             glActiveTexture(GL_TEXTURE0);
 
-            // Group chunks by primary block type for batching (simplified approach)
-            Map<String, List<ChunkBase>> chunksByTexture = groupChunksByPrimaryTexture(chunks);
+            List<Map.Entry<Long, ChunkBase>> sortedChunks = new ArrayList<>(chunks.entrySet());
+            Vector3f cameraPos = camera.getPosition();
 
+            sortedChunks.sort((a, b) -> {
+                float distA = cameraPos.distance(a.getValue().getPosition());
+                float distB = cameraPos.distance(b.getValue().getPosition());
+                return Float.compare(distA, distB);
+            });
+
+            Map<String, List<ChunkBase>> chunksByTexture = new HashMap<>();
+            for (Map.Entry<Long, ChunkBase> entry : sortedChunks) {
+                ChunkBase chunk = entry.getValue();
+                if (!chunk.isMeshBuilt()) continue;
+
+                String textureName = determinePrimaryTexture(chunk);
+                chunksByTexture.computeIfAbsent(textureName, k -> new ArrayList<>()).add(chunk);
+            }
+
+            int chunksRendered = 0;
             for (Map.Entry<String, List<ChunkBase>> entry : chunksByTexture.entrySet()) {
                 String textureName = entry.getKey();
                 int textureId = textureManager.getTexture(textureName);
@@ -633,17 +663,25 @@ public class Hmph {
                     int indexCount = chunk.getIndexCount();
                     if (indexCount <= 0) continue;
 
-                    Matrix4f modelMatrix = new Matrix4f().identity().translate(chunk.getPosition());
-                    chunkShader.setUniform("model", modelMatrix);
+                    if (camera.isChunkVisible(chunk.getPosition(), 16f)) {
+                        Matrix4f modelMatrix = new Matrix4f().identity().translate(chunk.getPosition());
+                        chunkShader.setUniform("model", modelMatrix);
 
-                    glBindVertexArray(vao);
-                    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+                        glBindVertexArray(vao);
+                        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+                        chunksRendered++;
+                    }
                 }
             }
 
             glBindVertexArray(0);
 
+            if (gameTime % 2.0f < 0.016f && chunksRendered > 0) {
+                LoggerHelper.betterPrint("Rendered " + chunksRendered + "/" + chunks.size() + " chunks", LoggerHelper.LogType.RENDERING);
+            }
+
         } catch (Exception e) {
+            LoggerHelper.betterPrint("Error in renderChunk: " + e.getMessage(), LoggerHelper.LogType.ERROR);
             e.printStackTrace();
         } finally {
             glBindVertexArray(0);
@@ -655,11 +693,11 @@ public class Hmph {
         }
     }
 
+
+    /**
     private Map<String, List<ChunkBase>> groupChunksByPrimaryTexture(Map<Long, ChunkBase> chunks) {
         Map<String, List<ChunkBase>> grouped = new HashMap<>();
 
-        // For now, we'll assign textures based on biome or chunk position
-        // This is a simplified approach - you might want to enhance this later
         for (ChunkBase chunk : chunks.values()) {
             String primaryTexture = determinePrimaryTexture(chunk);
             grouped.computeIfAbsent(primaryTexture, k -> new ArrayList<>()).add(chunk);
@@ -667,6 +705,7 @@ public class Hmph {
 
         return grouped;
     }
+     */
 
     private String determinePrimaryTexture(ChunkBase chunk) {
         Vector3f pos = chunk.getPosition();

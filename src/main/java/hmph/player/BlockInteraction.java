@@ -3,7 +3,7 @@ package hmph.player;
 import hmph.math.Raycasting.VoxelTraversal;
 import hmph.math.Vector3f;
 import hmph.math.Raycasting.Ray;
-import hmph.rendering.world.ChunkManager;
+import hmph.rendering.world.chunk.ChunkManager;
 
 public class BlockInteraction {
     public static final float max_reach = 20f;

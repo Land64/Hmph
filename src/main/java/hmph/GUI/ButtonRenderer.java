@@ -74,53 +74,42 @@ public class ButtonRenderer {
         updateScaledDimensions();
 
         this.normalRenderer = new ImageRenderer(normalImagePath, shader, currentScreenWidth, currentScreenHeight);
-        this.hoverRenderer = hoverImagePath!=null ? new ImageRenderer(hoverImagePath, shader, currentScreenWidth, currentScreenHeight) : this.normalRenderer;
-        this.pressedRenderer = pressedImagePath!=null ? new ImageRenderer(pressedImagePath, shader, currentScreenWidth, currentScreenHeight) : this.normalRenderer;
+        this.hoverRenderer = hoverImagePath != null ? new ImageRenderer(hoverImagePath, shader, currentScreenWidth, currentScreenHeight) : this.normalRenderer;
+        this.pressedRenderer = pressedImagePath != null ? new ImageRenderer(pressedImagePath, shader, currentScreenWidth, currentScreenHeight) : this.normalRenderer;
     }
 
     public ButtonRenderer(ShaderProgram shader, long windowHandle, float referenceWidth, float referenceHeight, float x, float y, float width, float height) throws Exception {
         this("assets/images/gui/button_rectangle_flat.png", shader, windowHandle, referenceWidth, referenceHeight, x, y, width, height);
     }
 
-    /**
-     * Set text object for button
-     */
+    /** Set text object for button */
     public void setText(TextObject textObject) {
         this.buttonTextObject = textObject;
-        if (textRenderer!=null && textObject!=null) {
+        if (textRenderer != null && textObject != null) {
             textRenderer.addTextObject(textObject);
         }
     }
 
-    /**
-     * Set text renderer for button
-     */
+    /** Set text renderer for button */
     public void setTextRenderer(TextRenderer renderer) {
         this.textRenderer = renderer;
-        if (buttonTextObject!=null && renderer!=null) {
+        if (buttonTextObject != null && renderer != null) {
             renderer.addTextObject(buttonTextObject);
         }
     }
 
-    /**
-     * Set text color
-     */
+    /** Set text color */
     public void setTextColor(float r, float g, float b, float a, TextObject renderer) {
         renderer.setColor(r, g, b, a);
     }
 
-    /**
-     * Set text offset
-     */
+    /** Set text offset */
     public void setTextOffset(float offsetX, float offsetY) {
-        if (buttonTextObject!=null) {
+        if (buttonTextObject != null) {
             buttonTextObject.setPosition(buttonTextObject.getX()+offsetX, buttonTextObject.getY()+offsetY);
         }
     }
 
-    /**
-     * Update current screen size from window
-     */
     private void updateCurrentScreenSize() {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer width = stack.mallocInt(1);
@@ -131,56 +120,42 @@ public class ButtonRenderer {
         }
     }
 
-    /**
-     * Update scaled dimensions based on current screen size
-     */
     private void updateScaledDimensions() {
-        float scaleX = currentScreenWidth/referenceWidth;
-        float scaleY = currentScreenHeight/referenceHeight;
-        float scale = Math.min(scaleX, scaleY);
-
-        this.width = originalWidth*scale;
-        this.height = originalHeight*scale;
-        this.x = originalX*scale;
-        this.y = originalY*scale;
-
-        if (scaleX > scaleY) {
-            float xOffset = (currentScreenWidth - referenceWidth*scale)/2;
-            this.x += xOffset;
-        }
-        else if (scaleY > scaleX) {
-            float yOffset = (currentScreenHeight - referenceHeight*scale)/2;
-            this.y += yOffset;
-        }
+        this.width = originalWidth;
+        this.height = originalHeight;
+        this.x = originalX;
+        this.y = originalY;
     }
 
-    /**
-     * Update screen size from window
-     */
+    /** Update screen size from window */
     public void updateScreenSize() {
         updateCurrentScreenSize();
         updateScaledDimensions();
     }
 
-    /**
-     * Update screen size with given dimensions
-     */
+    /** Update screen size with given dimensions */
     public void updateScreenSize(float newScreenWidth, float newScreenHeight) {
         this.currentScreenWidth = newScreenWidth;
         this.currentScreenHeight = newScreenHeight;
         updateScaledDimensions();
     }
 
-    /**
-     * Render button with proper text positioning
-     */
+    /** Update button position and size */
+    public void updatePosition(float newX, float newY, float newWidth, float newHeight) {
+        this.x = newX;
+        this.y = newY;
+        this.width = newWidth;
+        this.height = newHeight;
+    }
+
+    /** Render button with proper text positioning */
     public void render() {
         if (!enabled) return;
 
         ImageRenderer currentRenderer = isPressed ? pressedRenderer : isHovered ? hoverRenderer : normalRenderer;
         currentRenderer.renderImage(x, y, width, height);
 
-        if (textRenderer!=null && buttonTextObject!=null) {
+        if (textRenderer != null && buttonTextObject != null) {
             String text = buttonTextObject.getText();
             float textWidth = textRenderer.getTextWidth(text);
             float textX = x+(width-textWidth)/2f;
@@ -190,34 +165,26 @@ public class ButtonRenderer {
         }
     }
 
-    /**
-     * Set click listener
-     */
+    /** Set click listener */
     public void setClickListener(ButtonClickListener listener) {
         this.clickListener = listener;
     }
 
-    /**
-     * Set button position
-     */
+    /** Set button position */
     public void setPosition(float x, float y) {
         this.originalX = x;
         this.originalY = y;
         updateScaledDimensions();
     }
 
-    /**
-     * Set button size
-     */
+    /** Set button size */
     public void setSize(float width, float height) {
         this.originalWidth = width;
         this.originalHeight = height;
         updateScaledDimensions();
     }
 
-    /**
-     * Set button enabled state
-     */
+    /** Set button enabled state */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (!enabled) {
@@ -230,9 +197,7 @@ public class ButtonRenderer {
     public boolean isHovered() { return isHovered; }
     public boolean isPressed() { return isPressed; }
 
-    /**
-     * Update button state and handle mouse interactions
-     */
+    /** Update button state and handle mouse interactions */
     public void update(double mouseX, double mouseY, boolean mousePressed) {
         if (!enabled) {
             isHovered = false;
@@ -241,13 +206,13 @@ public class ButtonRenderer {
             return;
         }
 
-        boolean mouseOver = mouseX>=x && mouseX<=x+width && mouseY>=y && mouseY<=y+height;
+        boolean mouseOver = mouseX >= x && mouseX <= x+width && mouseY >= y && mouseY <= y+height;
         isHovered = mouseOver;
 
         if (mouseOver && mousePressed && !wasPressed) {
             isPressed = true;
         } else if (isPressed && !mousePressed && mouseOver) {
-            if (clickListener!=null) clickListener.onClick();
+            if (clickListener != null) clickListener.onClick();
             isPressed = false;
         } else if (!mousePressed) {
             isPressed = false;
@@ -265,31 +230,25 @@ public class ButtonRenderer {
     public float getOriginalWidth() { return originalWidth; }
     public float getOriginalHeight() { return originalHeight; }
 
-    /**
-     * Get current scale factor
-     */
+    /** Get current scale factor */
     public float getScaleFactor() {
         float scaleX = currentScreenWidth/referenceWidth;
         float scaleY = currentScreenHeight/referenceHeight;
         return Math.min(scaleX, scaleY);
     }
 
-    /**
-     * Check if point is within button bounds
-     */
+    /** Check if point is within button bounds */
     public boolean contains(double pointX, double pointY) {
-        return pointX>=x && pointX<=x+width && pointY>=y && pointY<=y+height;
+        return pointX >= x && pointX <= x+width && pointY >= y && pointY <= y+height;
     }
 
-    /**
-     * Cleanup button resources
-     */
+    /** Cleanup button resources */
     public void cleanup() {
-        if (normalRenderer!=null) normalRenderer.cleanup();
-        if (hoverRenderer!=null && hoverRenderer!=normalRenderer) {
+        if (normalRenderer != null) normalRenderer.cleanup();
+        if (hoverRenderer != null && hoverRenderer != normalRenderer) {
             hoverRenderer.cleanup();
         }
-        if (pressedRenderer!=null && pressedRenderer!=normalRenderer) {
+        if (pressedRenderer != null && pressedRenderer != normalRenderer) {
             pressedRenderer.cleanup();
         }
     }

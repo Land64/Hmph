@@ -1,9 +1,9 @@
 package hmph.player;
 
 import hmph.math.Vector3f;
-import hmph.rendering.world.ChunkManager;
+import hmph.rendering.world.chunk.ChunkManager;
 import hmph.rendering.BlockRegistry;
-import hmph.rendering.Camera;
+import hmph.rendering.camera.Camera;
 
 public class Player {
     public static final float PLAYER_HEIGHT = 2.3f;

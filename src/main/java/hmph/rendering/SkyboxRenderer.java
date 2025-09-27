@@ -1,11 +1,10 @@
 package hmph.rendering;
 
 import hmph.math.Matrix4f;
-import hmph.math.Vector3f;
 import hmph.rendering.shaders.ShaderProgram;
 import hmph.rendering.shaders.ShaderManager;
 import hmph.util.debug.LoggerHelper;
-import hmph.rendering.Camera;
+import hmph.rendering.camera.Camera;
 
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;

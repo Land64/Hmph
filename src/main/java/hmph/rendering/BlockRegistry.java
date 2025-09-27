@@ -58,7 +58,6 @@ public class BlockRegistry {
     }
 
     private void initializeBlocks() {
-        // Basic blocks
         registerBlock("stone", "solid", allTextures("stone_generic"), BlockProperties.solid(1.5f));
         registerBlock("dirt", "solid", allTextures("dirt"), BlockProperties.solid(0.5f));
         registerBlock("grass", "solid", topBottomSide("grass_top", "dirt", "grass_side"), BlockProperties.solid(0.6f));
@@ -74,58 +73,40 @@ public class BlockRegistry {
         registerBlock("schist", "solid", allTextures("schist"), BlockProperties.solid(1.2f));
         registerBlock("slate", "solid", allTextures("slate"), BlockProperties.solid(1.5f));
         registerBlock("slate_tiles", "solid", allTextures("slate_tiles"), BlockProperties.solid(1.5f));
-
-        // Sedimentary blocks
         registerBlock("limestone", "solid", allTextures("limestone"), BlockProperties.solid(0.8f));
         registerBlock("limestone_bricks", "solid", allTextures("limestone_bricks"), BlockProperties.solid(1.5f));
         registerBlock("sandstone", "solid", allTextures("sandstone"), BlockProperties.solid(0.8f));
         registerBlock("sandstone_bricks", "solid", allTextures("sandstone_bricks"), BlockProperties.solid(1.5f));
         registerBlock("sandstone_carved", "solid", allTextures("sandstone_carved"), BlockProperties.solid(0.8f));
         registerBlock("sandstone_tiles", "solid", allTextures("sandstone_tiles"), BlockProperties.solid(1.5f));
-
-        // Marble blocks
         registerBlock("marble", "solid", allTextures("marble"), BlockProperties.solid(1.5f));
         registerBlock("marble_bricks", "solid", allTextures("marble_bricks"), BlockProperties.solid(1.5f));
         registerBlock("marble_bricks2", "solid", allTextures("marble_bricks2"), BlockProperties.solid(1.5f));
         registerBlock("marble_bricks3", "solid", allTextures("marble_bricks3"), BlockProperties.solid(1.5f));
-
-        // Serpentine blocks
         registerBlock("serpentine", "solid", allTextures("serpentine"), BlockProperties.solid(1.5f));
         registerBlock("serpentine_bricks", "solid", allTextures("serpentine_bricks"), BlockProperties.solid(1.5f));
         registerBlock("serpentine_carved", "solid", allTextures("serpentine_carved"), BlockProperties.solid(1.5f));
-
-        // Soil blocks
         registerBlock("farmland", "solid", allTextures("farmland"), BlockProperties.solid(0.6f));
         registerBlock("mud", "solid", allTextures("mud"), BlockProperties.solid(0.5f));
         registerBlock("mud_bricks", "solid", allTextures("mud_bricks"), BlockProperties.solid(1.5f));
         registerBlock("mud_cracked", "solid", allTextures("mud_cracked"), BlockProperties.solid(0.4f));
-
-        // Wood logs
         registerBlock("oak_log", "log", topBottomSide("oak_log_top", "oak_log_top", "oak_log_side"), new BlockProperties(2.0f, true, false, false, 0));
         registerBlock("beech_log", "log", topBottomSide("beech_log_top", "beech_log_top", "beech_log_side"), new BlockProperties(2.0f, true, false, false, 0));
         registerBlock("eucalyptus_log", "log", topBottomSide("eucalyptus_log_top", "eucalyptus_log_top", "eucalyptus_log_side"), new BlockProperties(2.0f, true, false, false, 0));
         registerBlock("maple_log", "log", topBottomSide("maple_log_top", "maple_log_top", "maple_log_side"), new BlockProperties(2.0f, true, false, false, 0));
         registerBlock("pine_log", "log", topBottomSide("pine_log_top", "pine_log_top", "pine_log_side"), new BlockProperties(2.0f, true, false, false, 0));
-
-        // Wood planks
         registerBlock("oak_planks", "solid", allTextures("oak_planks"), new BlockProperties(2.0f, true, false, false, 0));
         registerBlock("beech_planks", "solid", allTextures("beech_planks"), new BlockProperties(2.0f, true, false, false, 0));
         registerBlock("eucalyptus_planks", "solid", allTextures("eucalyptus_planks"), new BlockProperties(2.0f, true, false, false, 0));
         registerBlock("maple_planks", "solid", allTextures("maple_planks"), new BlockProperties(2.0f, true, false, false, 0));
         registerBlock("pine_planks", "solid", allTextures("pine_planks"), new BlockProperties(2.0f, true, false, false, 0));
-
-        // Leaves
         registerBlock("oak_leaves", "leaves", allTextures("oak_leaves"), new BlockProperties(0.2f, true, true, false, 0));
         registerBlock("beech_leaves", "leaves", allTextures("beech_leaves"), new BlockProperties(0.2f, true, true, false, 0));
         registerBlock("eucalyptus_leaves", "leaves", allTextures("eucalyptus_leaves"), new BlockProperties(0.2f, true, true, false, 0));
         registerBlock("maple_leaves", "leaves", allTextures("maple_leaves"), new BlockProperties(0.2f, true, true, false, 0));
         registerBlock("pine_leaves", "leaves", allTextures("pine_leaves"), new BlockProperties(0.2f, true, true, false, 0));
-
-        // Ores and special blocks
         registerBlock("amethyst", "ore", allTextures("amethyst"), BlockProperties.ore(1.5f));
         registerBlock("obsidian", "solid", allTextures("obsidian"), BlockProperties.solid(50.0f));
-
-        // Coral blocks
         registerBlock("coral_block_brain", "solid", allTextures("coral_block_brain"), BlockProperties.solid(1.5f));
         registerBlock("coral_block_brain_bleached", "solid", allTextures("coral_block_brain_bleached"), BlockProperties.solid(1.5f));
         registerBlock("coral_block_cauliflower", "solid", allTextures("coral_block_cauliflower"), BlockProperties.solid(1.5f));
@@ -134,33 +115,19 @@ public class BlockRegistry {
         registerBlock("coral_block_pore_bleached", "solid", allTextures("coral_block_pore_bleached"), BlockProperties.solid(1.5f));
         registerBlock("coral_block_star", "solid", allTextures("coral_block_star"), BlockProperties.solid(1.5f));
         registerBlock("coral_block_star_bleached", "solid", allTextures("coral_block_star_bleached"), BlockProperties.solid(1.5f));
-
-        // Cobblestone variants
         registerBlock("cobblestone", "solid", allTextures("cobblestone"), BlockProperties.solid(2.0f));
         registerBlock("cobblestone_bricks", "solid", allTextures("cobblestone_bricks"), BlockProperties.solid(2.0f));
         registerBlock("cobblestone_bricks_mossy", "solid", allTextures("cobblestone_bricks_mossy"), BlockProperties.solid(2.0f));
         registerBlock("cobblestone_mossy", "solid", allTextures("cobblestone_mossy"), BlockProperties.solid(2.0f));
-
-        // Ice blocks
         registerBlock("ice_glacier", "transparent", allTextures("ice_glacier"), BlockProperties.transparent(0.5f));
         registerBlock("ice_icicles", "transparent", allTextures("ice_icicles"), BlockProperties.transparent(0.5f));
-
-        // Glass
         registerBlock("glass", "transparent", allTextures("glass"), BlockProperties.transparent(0.3f));
-
-        // Sand variants
         registerBlock("sand_ugly", "solid", allTextures("sand_ugly"), BlockProperties.solid(0.5f));
         registerBlock("sand_ugly_2", "solid", allTextures("sand_ugly_2"), BlockProperties.solid(0.5f));
         registerBlock("sand_ugly_3", "solid", allTextures("sand_ugly_3"), BlockProperties.solid(0.5f));
-
-        // Gravel and snow
         registerBlock("gravel", "solid", allTextures("gravel"), BlockProperties.solid(0.6f));
         registerBlock("snow", "solid", allTextures("snow"), BlockProperties.solid(0.1f));
-
-        // Hay block
         registerBlock("hay_block", "solid", topBottomSide("hay_top", "hay_top", "hay_side"), new BlockProperties(0.5f, true, false, false, 0));
-
-        // Ore variants
         registerBlock("stone_generic_ore_crystalline", "ore", allTextures("stone_generic_ore_crystalline"), BlockProperties.ore(3.0f));
         registerBlock("stone_generic_ore_nuggets", "ore", allTextures("stone_generic_ore_nuggets"), BlockProperties.ore(3.0f));
 

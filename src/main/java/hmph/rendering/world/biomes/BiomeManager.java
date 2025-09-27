@@ -65,9 +65,16 @@ public class BiomeManager {
     private int getBlockId(String blockName) {
         int id = registry.getIDFromName(blockName);
         if (id == 0) {
-            System.err.println("Warning: Block '" + blockName + "' not found in registry, using stone as fallback");
-            int stoneId = registry.getIDFromName("stone");
-            return stoneId != 0 ? stoneId : 1; 
+            String[] fallbacks = {"stone", "dirt", "grass"};
+            for (String fallback : fallbacks) {
+                int fallbackId = registry.getIDFromName(fallback);
+                if (fallbackId != 0) {
+                    System.err.println("Warning: Block '" + blockName + "' not found in registry, using " + fallback + " (ID " + fallbackId + ")");
+                    return fallbackId;
+                }
+            }
+            System.err.println("Warning: Block '" + blockName + "' not found, using fallback ID 1");
+            return 1;
         }
         return id;
     }
@@ -80,15 +87,15 @@ public class BiomeManager {
             
         }
 
-        
+
         Map<String, Integer> plainsBlocks = new HashMap<>();
-        plainsBlocks.put("grass", getBlockId("grass"));  
+        plainsBlocks.put("grass", getBlockId("grass"));    // This should match your registry
         plainsBlocks.put("dirt", getBlockId("dirt"));
         plainsBlocks.put("stone", getBlockId("stone"));
         biomes.put("plains", new Biome("plains", plainsBlocks,
                 new BiomeProperties(0.05, 25, 10, 0.7f, 0.6f, false)));
 
-        
+        // Forest biome
         Map<String, Integer> forestBlocks = new HashMap<>();
         forestBlocks.put("grass", getBlockId("grass"));
         forestBlocks.put("dirt", getBlockId("dirt"));
@@ -98,7 +105,6 @@ public class BiomeManager {
         biomes.put("forest", new Biome("forest", forestBlocks,
                 new BiomeProperties(0.04, 35, 12, 0.6f, 0.8f, true)));
 
-        
         Map<String, Integer> mountainBlocks = new HashMap<>();
         mountainBlocks.put("stone", getBlockId("granite"));
         mountainBlocks.put("dirt", getBlockId("dirt"));
@@ -108,7 +114,6 @@ public class BiomeManager {
         biomes.put("mountains", new Biome("mountains", mountainBlocks,
                 new BiomeProperties(0.02, 80, 5, 0.2f, 0.3f, false)));
 
-        
         Map<String, Integer> desertBlocks = new HashMap<>();
         desertBlocks.put("sand", getBlockId("sand_ugly"));
         desertBlocks.put("sand2", getBlockId("sand_ugly_2"));
@@ -116,43 +121,6 @@ public class BiomeManager {
         desertBlocks.put("stone", getBlockId("sandstone"));
         biomes.put("desert", new Biome("desert", desertBlocks,
                 new BiomeProperties(0.06, 20, 8, 0.9f, 0.1f, false)));
-
-        
-        Map<String, Integer> volcanicBlocks = new HashMap<>();
-        volcanicBlocks.put("basalt", getBlockId("basalt"));
-        volcanicBlocks.put("basalt_flow", getBlockId("basalt_flow"));
-        volcanicBlocks.put("obsidian", getBlockId("obsidian"));
-        volcanicBlocks.put("stone", getBlockId("rhyolite"));
-        biomes.put("volcanic", new Biome("volcanic", volcanicBlocks,
-                new BiomeProperties(0.03, 45, 8, 1.0f, 0.2f, false)));
-
-        
-        Map<String, Integer> swampBlocks = new HashMap<>();
-        swampBlocks.put("mud", getBlockId("mud"));
-        swampBlocks.put("mud_cracked", getBlockId("mud_cracked"));
-        swampBlocks.put("dirt", getBlockId("dirt"));
-        swampBlocks.put("grass", getBlockId("grass"));
-        biomes.put("swamp", new Biome("swamp", swampBlocks,
-                new BiomeProperties(0.05, 15, 12, 0.7f, 0.9f, true)));
-
-        
-        Map<String, Integer> taigaBlocks = new HashMap<>();
-        taigaBlocks.put("grass", getBlockId("grass"));
-        taigaBlocks.put("dirt", getBlockId("dirt"));
-        taigaBlocks.put("stone", getBlockId("stone"));
-        taigaBlocks.put("pine_leaves", getBlockId("pine_leaves"));
-        taigaBlocks.put("snow", getBlockId("snow"));
-        biomes.put("taiga", new Biome("taiga", taigaBlocks,
-                new BiomeProperties(0.04, 30, 10, 0.3f, 0.7f, true)));
-
-        
-        Map<String, Integer> marbleBlocks = new HashMap<>();
-        marbleBlocks.put("marble", getBlockId("marble"));
-        marbleBlocks.put("marble_bricks", getBlockId("marble_bricks"));
-        marbleBlocks.put("marble_bricks2", getBlockId("marble_bricks2"));
-        marbleBlocks.put("stone", getBlockId("limestone"));
-        biomes.put("marble_caves", new Biome("marble_caves", marbleBlocks,
-                new BiomeProperties(0.03, 35, 15, 0.5f, 0.4f, true)));
 
     }
 
