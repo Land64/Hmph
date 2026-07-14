@@ -135,6 +135,11 @@ public class ImageRenderer {
         glDeleteVertexArrays(vao);
     }
 
+    public void setScreenSize(float screenWidth, float screenHeight) {
+        this.screenWidth = Math.max(1f, screenWidth);
+        this.screenHeight = Math.max(1f, screenHeight);
+    }
+
     public int getWidth() { return width; }
     public int getHeight() { return height; }
     public ShaderProgram getShader() { return shader; }

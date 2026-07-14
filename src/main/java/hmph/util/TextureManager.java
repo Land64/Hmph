@@ -3,117 +3,139 @@ package hmph.util;
 import hmph.util.debug.LoggerHelper;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.stb.STBImage;
-import org.lwjgl.system.MemoryStack;
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL30.*;
+
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.io.InputStream;
-import java.util.HashMap;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL12.glTexImage3D;
+import static org.lwjgl.opengl.GL12.glTexSubImage3D;
+import static org.lwjgl.opengl.GL13.*;
+import static org.lwjgl.opengl.GL30.*;
+
 public class TextureManager {
-    private Map<String, Integer> textures = new HashMap<>();
-    private int defaultTexture = 0;
+    public static final int BLOCK_TEXTURE_SIZE = 16;
 
-    public TextureManager() {
-        createDefaultTexture();
-    }
+    private final Map<String, Integer> textureLayers = new LinkedHashMap<>();
+    private int textureArray;
 
-    private void createDefaultTexture() {
-        byte[] pixels = {
-                (byte)255, (byte)255, (byte)255, (byte)255, // White
-                (byte)255, (byte)255, (byte)255, (byte)255, // White
-                (byte)255, (byte)255, (byte)255, (byte)255, // White
-                (byte)255, (byte)255, (byte)255, (byte)255  // White
-        };
+    public void loadTextureArray(Map<String, String> resources) {
+        cleanup();
+        textureLayers.clear();
 
-        ByteBuffer buffer = BufferUtils.createByteBuffer(pixels.length);
-        buffer.put(pixels);
-        buffer.flip();
+        textureArray = glGenTextures();
+        if (textureArray == 0) throw new IllegalStateException("Failed to create block texture array");
 
-        defaultTexture = glGenTextures();
-        glBindTexture(GL_TEXTURE_2D, defaultTexture);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, textureArray);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        int layerCount = resources.size() + 1;
+        glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8,
+                BLOCK_TEXTURE_SIZE, BLOCK_TEXTURE_SIZE, layerCount,
+                0, GL_RGBA, GL_UNSIGNED_BYTE, (ByteBuffer) null);
 
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2, 0,
-                GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        LoggerHelper.betterPrint("Created default texture: " + defaultTexture, LoggerHelper.LogType.RENDERING);
-    }
-
-
-    public int loadTexture(String name, String resourcePath) {
-        if (textures.containsKey(name)) {
-            return textures.get(name);
+        uploadFallbackLayer(0);
+        int layer = 1;
+        int loaded = 0;
+        for (Map.Entry<String, String> entry : resources.entrySet()) {
+            textureLayers.put(entry.getKey(), layer);
+            if (uploadLayer(layer, entry.getValue())) loaded++;
+            else uploadFallbackLayer(layer);
+            layer++;
         }
 
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            IntBuffer width = stack.mallocInt(1);
-            IntBuffer height = stack.mallocInt(1);
-            IntBuffer channels = stack.mallocInt(1);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+        glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
-            InputStream inputStream = getClass().getClassLoader().getResourceAsStream(resourcePath);
-            if (inputStream == null) {
-                System.err.println("Could not find texture resource: " + resourcePath);
-                textures.put(name, defaultTexture);
-                return defaultTexture;
+        LoggerHelper.betterPrint("Loaded " + loaded + "/" + resources.size() +
+                " block textures into one texture array", LoggerHelper.LogType.RENDERING);
+    }
+
+    private boolean uploadLayer(int layer, String resourcePath) {
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+            if (input == null) {
+                LoggerHelper.betterPrint("Missing texture: " + resourcePath, LoggerHelper.LogType.ERROR);
+                return false;
             }
 
-            byte[] imageBytes = inputStream.readAllBytes();
-            ByteBuffer imageBuffer = stack.malloc(imageBytes.length);
-            imageBuffer.put(imageBytes);
-            imageBuffer.flip();
-
-            ByteBuffer image = STBImage.stbi_load_from_memory(imageBuffer, width, height, channels, 4);
-            if (image == null) {
-                System.err.println("Failed to load texture: " + resourcePath + " - " + STBImage.stbi_failure_reason());
-                textures.put(name, defaultTexture);
-                return defaultTexture;
+            byte[] bytes = input.readAllBytes();
+            ByteBuffer encoded = BufferUtils.createByteBuffer(bytes.length).put(bytes).flip();
+            IntBuffer width = BufferUtils.createIntBuffer(1);
+            IntBuffer height = BufferUtils.createIntBuffer(1);
+            IntBuffer channels = BufferUtils.createIntBuffer(1);
+            STBImage.stbi_set_flip_vertically_on_load(false);
+            ByteBuffer pixels = STBImage.stbi_load_from_memory(encoded, width, height, channels, 4);
+            if (pixels == null) {
+                LoggerHelper.betterPrint("Could not decode " + resourcePath + ": " +
+                        STBImage.stbi_failure_reason(), LoggerHelper.LogType.ERROR);
+                return false;
             }
 
-            int textureId = glGenTextures();
-            glBindTexture(GL_TEXTURE_2D, textureId);
-
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width.get(0), height.get(0), 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
-            glGenerateMipmap(GL_TEXTURE_2D);
-
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-            STBImage.stbi_image_free(image);
-            glBindTexture(GL_TEXTURE_2D, 0);
-
-            textures.put(name, textureId);
-            LoggerHelper.betterPrint("Loaded texture: " + name + " (" + width.get(0) + "x" + height.get(0) + ") -> ID " + textureId, LoggerHelper.LogType.RENDERING);
-            return textureId;
-
+            try {
+                if (width.get(0) != BLOCK_TEXTURE_SIZE || height.get(0) != BLOCK_TEXTURE_SIZE) {
+                    LoggerHelper.betterPrint("Texture must be 16x16: " + resourcePath,
+                            LoggerHelper.LogType.ERROR);
+                    return false;
+                }
+                glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, layer,
+                        BLOCK_TEXTURE_SIZE, BLOCK_TEXTURE_SIZE, 1,
+                        GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+                return true;
+            } finally {
+                STBImage.stbi_image_free(pixels);
+            }
         } catch (Exception e) {
-            System.err.println("Error loading texture " + resourcePath + ": " + e.getMessage());
-            e.printStackTrace();
-            textures.put(name, defaultTexture);
-            return defaultTexture;
+            LoggerHelper.betterPrint("Error loading texture " + resourcePath + ": " + e.getMessage(),
+                    LoggerHelper.LogType.ERROR);
+            return false;
         }
     }
 
-    public int getTexture(String name) {
-        return textures.getOrDefault(name, defaultTexture);
+    private void uploadFallbackLayer(int layer) {
+        ByteBuffer pixels = BufferUtils.createByteBuffer(BLOCK_TEXTURE_SIZE * BLOCK_TEXTURE_SIZE * 4);
+        for (int y = 0; y < BLOCK_TEXTURE_SIZE; y++) {
+            for (int x = 0; x < BLOCK_TEXTURE_SIZE; x++) {
+                boolean dark = ((x / 4) + (y / 4)) % 2 == 0;
+                pixels.put((byte) (dark ? 35 : 220));
+                pixels.put((byte) 0);
+                pixels.put((byte) (dark ? 45 : 220));
+                pixels.put((byte) 255);
+            }
+        }
+        pixels.flip();
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, layer,
+                BLOCK_TEXTURE_SIZE, BLOCK_TEXTURE_SIZE, 1,
+                GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     }
 
-    public void bindTexture(String name, int textureUnit) {
+    public int getTextureArray() {
+        return textureArray;
+    }
+
+    public int getTextureLayer(String name) {
+        return textureLayers.getOrDefault(name, 0);
+    }
+
+    public Map<String, Integer> getTextureLayers() {
+        return Collections.unmodifiableMap(textureLayers);
+    }
+
+    public void bindTextureArray(int textureUnit) {
         glActiveTexture(GL_TEXTURE0 + textureUnit);
-        glBindTexture(GL_TEXTURE_2D, getTexture(name));
+        glBindTexture(GL_TEXTURE_2D_ARRAY, textureArray);
     }
 
     public void cleanup() {
-        for (int textureId : textures.values()) {
-            glDeleteTextures(textureId);
+        if (textureArray != 0) {
+            glDeleteTextures(textureArray);
+            textureArray = 0;
         }
-        textures.clear();
     }
 }

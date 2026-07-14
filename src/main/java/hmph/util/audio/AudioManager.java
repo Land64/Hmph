@@ -9,17 +9,21 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
 
 public class AudioManager {
-    private Map<String, Clip> sounds = new HashMap<>();
-    private float masterVolume = 1.0f;
-    private boolean initialized = false;
-    private Map<String, Playlist> playlists = new HashMap<>();
-    private Playlist currentPlaylist = null;
+    public static final float DEFAULT_MASTER_VOLUME = 0.12f;
 
-    /** Initialize audio system */
+    private final Map<String, Clip> sounds = new HashMap<>();
+    private final Map<Clip, Float> clipVolumes = new HashMap<>();
+    private final Map<String, Playlist> playlists = new HashMap<>();
+    private float masterVolume = DEFAULT_MASTER_VOLUME;
+    private boolean initialized;
+    private Playlist currentPlaylist;
+    private Clip playlistClip;
+    private LineListener playlistListener;
+
     public boolean initialize() {
+        if (initialized) return true;
         try {
             AudioSystem.getMixer(null);
             initialized = true;
@@ -31,22 +35,29 @@ public class AudioManager {
         }
     }
 
-    /** Load sound from WAV file */
     public boolean loadSound(String name, String path) {
         if (!initialized) return false;
 
-        try {
-            InputStream stream = getClass().getClassLoader().getResourceAsStream(path);
-            if (stream == null) {
-                LoggerHelper.betterPrint("Sound file not found: " + path, LoggerHelper.LogType.ERROR);
-                return false;
-            }
+        InputStream resource = getClass().getClassLoader().getResourceAsStream(path);
+        if (resource == null) {
+            LoggerHelper.betterPrint("Sound file not found: " + path, LoggerHelper.LogType.ERROR);
+            return false;
+        }
 
-            AudioInputStream audioStream = AudioSystem.getAudioInputStream(new BufferedInputStream(stream));
+        try (resource;
+             BufferedInputStream buffered = new BufferedInputStream(resource);
+             AudioInputStream audioStream = AudioSystem.getAudioInputStream(buffered)) {
             Clip clip = AudioSystem.getClip();
             clip.open(audioStream);
+            clipVolumes.put(clip, 1.0f);
+            applyGain(clip, 1.0f);
 
-            sounds.put(name, clip);
+            Clip previous = sounds.put(name, clip);
+            if (previous != null) {
+                clipVolumes.remove(previous);
+                previous.stop();
+                previous.close();
+            }
             LoggerHelper.betterPrint("Loaded sound: " + name, LoggerHelper.LogType.INFO);
             return true;
         } catch (Exception e) {
@@ -55,16 +66,12 @@ public class AudioManager {
         }
     }
 
-    /** Play sound */
     public void playSound(String name) {
         playSound(name, 1.0f, false);
-        LoggerHelper.betterPrint(name + " been playedd..", LoggerHelper.LogType.DEBUG);
     }
 
-    /** Play sound with volume */
-    public void playSound(String name, float volume, boolean loop) {
+    public synchronized void playSound(String name, float volume, boolean loop) {
         if (!initialized) return;
-
         Clip clip = sounds.get(name);
         if (clip == null) {
             LoggerHelper.betterPrint("Sound not found: " + name, LoggerHelper.LogType.ERROR);
@@ -72,106 +79,89 @@ public class AudioManager {
         }
 
         try {
-            if (clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-                FloatControl gainControl = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
-                float gain = 20f * (float) Math.log10(volume * masterVolume);
-                gain = Math.max(gainControl.getMinimum(), Math.min(gain, gainControl.getMaximum()));
-                gainControl.setValue(gain);
-            }
-
+            float clampedVolume = clamp01(volume);
+            clipVolumes.put(clip, clampedVolume);
+            applyGain(clip, clampedVolume);
+            clip.stop();
             clip.setFramePosition(0);
-            if (loop) {
-                clip.loop(Clip.LOOP_CONTINUOUSLY);
-            } else {
-                clip.start();
-            }
+            if (loop) clip.loop(Clip.LOOP_CONTINUOUSLY);
+            else clip.start();
         } catch (Exception e) {
             LoggerHelper.betterPrint("Error playing sound " + name + ": " + e.getMessage(), LoggerHelper.LogType.ERROR);
         }
     }
 
-    /** Stop sound */
-    public void stopSound(String name) {
-        if (!initialized) return;
-
+    public synchronized void stopSound(String name) {
         Clip clip = sounds.get(name);
-        if (clip != null) {
-            clip.stop();
-            LoggerHelper.betterPrint(name + " been stopped..", LoggerHelper.LogType.DEBUG);
-        }
+        if (clip != null) clip.stop();
     }
 
-    /** Stop all sounds */
-    public void stopAllSounds() {
-        if (!initialized) return;
-
-        for (Clip clip : sounds.values()) {
-            clip.stop();
-        }
+    public synchronized void stopAllSounds() {
+        stopPlaylist();
+        for (Clip clip : sounds.values()) clip.stop();
     }
 
-    /** Check if sound is playing */
     public boolean isPlaying(String name) {
-        if (!initialized) return false;
-
         Clip clip = sounds.get(name);
-        return clip != null && clip.isRunning();
+        return initialized && clip != null && clip.isRunning();
     }
 
-    /** Set master volume */
-    public void setMasterVolume(float volume) {
-        this.masterVolume = Math.max(0.0f, Math.min(1.0f, volume));
+    public synchronized void setMasterVolume(float volume) {
+        masterVolume = clamp01(volume);
+        for (Map.Entry<Clip, Float> entry : clipVolumes.entrySet()) {
+            applyGain(entry.getKey(), entry.getValue());
+        }
     }
 
-    /** Get master volume */
     public float getMasterVolume() {
         return masterVolume;
     }
 
-    /** Cleanup audio resources */
-    public void cleanup() {
+    public synchronized void cleanup() {
         if (!initialized) return;
-
         stopAllSounds();
-
-        for (Clip clip : sounds.values()) {
-            clip.close();
-        }
+        for (Clip clip : sounds.values()) clip.close();
         sounds.clear();
-
+        clipVolumes.clear();
+        playlists.clear();
         initialized = false;
         LoggerHelper.betterPrint("Audio system cleaned up", LoggerHelper.LogType.INFO);
     }
 
-    /** Creates a playlist */
     public void createPlaylist(String name, List<String> soundNames, boolean loop) {
         playlists.put(name, new Playlist(soundNames, loop));
     }
 
-    /** Plays the created playlist */
-    public void playPlaylist(String name) {
+    public synchronized void playPlaylist(String name) {
         Playlist playlist = playlists.get(name);
-        if (playlist == null) {
-            LoggerHelper.betterPrint("Playlist not found: " + name, LoggerHelper.LogType.ERROR);
+        if (playlist == null || playlist.sounds.isEmpty()) {
+            LoggerHelper.betterPrint("Playlist not found or empty: " + name, LoggerHelper.LogType.ERROR);
             return;
         }
+        stopPlaylist();
+        playlist.reset();
         currentPlaylist = playlist;
         playNextInPlaylist();
     }
 
-    /** Stops the playlist if its currently being played */
-    public void stopPlaylist() {
-        if (currentPlaylist != null) {
-            currentPlaylist.stopCurrentSound();
-            currentPlaylist = null;
+    public synchronized void stopPlaylist() {
+        currentPlaylist = null;
+        detachPlaylistListener();
+        if (playlistClip != null) {
+            playlistClip.stop();
+            playlistClip = null;
         }
     }
 
-    private void playNextInPlaylist() {
-        if (currentPlaylist == null) return;
+    private synchronized void playNextInPlaylist() {
+        Playlist playlist = currentPlaylist;
+        if (playlist == null) return;
 
-        String nextSound = currentPlaylist.getNextSound();
-        if (nextSound == null) return;
+        String nextSound = playlist.getNextSound();
+        if (nextSound == null) {
+            currentPlaylist = null;
+            return;
+        }
 
         Clip clip = sounds.get(nextSound);
         if (clip == null) {
@@ -180,45 +170,71 @@ public class AudioManager {
             return;
         }
 
+        detachPlaylistListener();
+        playlistClip = clip;
+        clipVolumes.put(clip, 1.0f);
+        applyGain(clip, 1.0f);
+        clip.stop();
         clip.setFramePosition(0);
-        clip.addLineListener(event -> {
-            if (event.getType() == LineEvent.Type.STOP) {
-                if (currentPlaylist != null) {
+
+        playlistListener = new LineListener() {
+            @Override
+            public void update(LineEvent event) {
+                if (event.getType() != LineEvent.Type.STOP) return;
+                synchronized (AudioManager.this) {
+                    if (playlistListener != this || currentPlaylist != playlist) return;
+                    boolean finished = clip.getFramePosition() >= clip.getFrameLength();
+                    if (!finished) return;
+                    detachPlaylistListener();
+                    playlistClip = null;
                     playNextInPlaylist();
                 }
             }
-        });
+        };
+        clip.addLineListener(playlistListener);
         clip.start();
     }
 
-    public class Playlist {
-        private List<String> sounds;
-        private int index = 0;
-        private boolean loop;
+    private void detachPlaylistListener() {
+        if (playlistClip != null && playlistListener != null) {
+            playlistClip.removeLineListener(playlistListener);
+        }
+        playlistListener = null;
+    }
 
-        public Playlist(List<String> sounds, boolean loop) {
+    private void applyGain(Clip clip, float soundVolume) {
+        if (!clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) return;
+        FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+        float linear = clamp01(soundVolume) * masterVolume;
+        float decibels = linear <= 0.0001f ? gain.getMinimum() : 20f * (float) Math.log10(linear);
+        gain.setValue(Math.max(gain.getMinimum(), Math.min(decibels, gain.getMaximum())));
+    }
+
+    private static float clamp01(float value) {
+        return Math.max(0.0f, Math.min(1.0f, value));
+    }
+
+    public static final class Playlist {
+        private final List<String> sounds;
+        private final boolean loop;
+        private int index;
+
+        private Playlist(List<String> sounds, boolean loop) {
             this.sounds = new ArrayList<>(sounds);
             this.loop = loop;
         }
 
-        public String getNextSound() {
-            if (sounds.isEmpty()) return null;
-            if (index >= sounds.size()) {
-                if (loop) {
-                    index = 0;
-                } else {
-                    return null;
-                }
-            }
-            return sounds.get(index++);
+        private void reset() {
+            index = 0;
         }
 
-        public void stopCurrentSound() {
-            if (index > 0 && index <= sounds.size()) {
-                String currentSoundName = sounds.get(index - 1);
-                Clip clip = AudioManager.this.sounds.get(currentSoundName);
-                if (clip != null) clip.stop();
+        private String getNextSound() {
+            if (sounds.isEmpty()) return null;
+            if (index >= sounds.size()) {
+                if (!loop) return null;
+                index = 0;
             }
+            return sounds.get(index++);
         }
     }
 }

@@ -89,9 +89,6 @@ public class Camera {
         viewProjectionMatrix.set(projection).multiply(view);
         frustum.extractFromMatrix(viewProjectionMatrix);
 
-        if (System.currentTimeMillis() % 2000 < 50) {
-            System.out.println("Camera pos: " + position + " yaw: " + yaw + " pitch: " + pitch);
-        }
     }
 
     /**
@@ -226,7 +223,7 @@ public class Camera {
     public void lookAt(Vector3f target) {
         Vector3f direction = new Vector3f(target).add(position.x*-1, position.y*-1, position.z*-1).normalize();
         this.yaw = (float) Math.toDegrees(Math.atan2(direction.z, direction.x));
-        this.pitch = (float) Math.toDegrees(Math.asin(-direction.y));
+        this.pitch = (float) Math.toDegrees(Math.asin(direction.y));
         updateCameraVectors();
         frustumDirty = true;
     }

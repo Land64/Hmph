@@ -75,6 +75,10 @@ public class ChunkManagerExtension extends ChunkManager {
      * Update chunks with camera for frustum culling
      */
     public void updateChunksWithCamera(Vector3f playerPosition, Camera camera) {
+        updateChunksWithCamera(playerPosition, camera, 16f / 9f);
+    }
+
+    public void updateChunksWithCamera(Vector3f playerPosition, Camera camera, float aspectRatio) {
         int playerChunkX = getChunkCoord(playerPosition.x);
         int playerChunkZ = getChunkCoord(playerPosition.z);
 
@@ -87,7 +91,7 @@ public class ChunkManagerExtension extends ChunkManager {
 
         // Update frustum if camera available
         if (camera != null) {
-            camera.updateFrustum(16f/9f, 0.1f, renderDistance * ChunkBase.SIZE_X * 1.5f);
+            camera.updateFrustum(aspectRatio, 0.1f, renderDistance * ChunkBase.SIZE_X * 1.5f);
         }
 
         // Update chunk LODs and visibility
@@ -162,9 +166,6 @@ public class ChunkManagerExtension extends ChunkManager {
             }
         }
 
-        if (System.currentTimeMillis() % 3000 < 50) {
-            System.out.println("FRUSTUM DEBUG: Total=" + totalChunks + " Visible=" + visibleChunks + " Culled=" + culledChunks);
-        }
     }
 
     private LODLevel calculateRequiredLOD(float distance) {
@@ -236,7 +237,8 @@ public class ChunkManagerExtension extends ChunkManager {
                 chunk.buildGLBuffers();
                 if (chunk.isMeshBuilt()) {
                     long chunkKey = getChunkKey(chunk.getChunkX(), chunk.getChunkZ());
-                    loadedChunks.put(chunkKey, chunk);
+                    ChunkBase previous = loadedChunks.put(chunkKey, chunk);
+                    if (previous != null && previous != chunk) previous.cleanup();
                 }
             } catch (Exception e) {
                 LoggerHelper.betterPrint("Error creating GL buffers for chunk (" +
@@ -312,6 +314,15 @@ public class ChunkManagerExtension extends ChunkManager {
         return chunk != null ? chunk.getBlockWorld(worldX, worldY, worldZ) : 0;
     }
 
+    public int getSurfaceHeight(int worldX, int worldZ) {
+        ChunkBase chunk = getChunkAt(worldX, worldZ);
+        if (chunk == null) return -1;
+        for (int y = ChunkBase.SIZE_Y - 1; y >= 0; y--) {
+            if (chunk.getBlockWorld(worldX, y, worldZ) != 0) return y;
+        }
+        return -1;
+    }
+
     public void setBlockAt(int worldX, int worldY, int worldZ, int blockId) {
         ChunkBase chunk = getChunkAt(worldX, worldZ);
         if (chunk != null) {
@@ -383,6 +394,7 @@ public class ChunkManagerExtension extends ChunkManager {
             }
         } catch (InterruptedException e) {
             chunkExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
         }
 
         for (ChunkBase chunk : loadedChunks.values()) {
@@ -447,6 +459,7 @@ public class ChunkManagerExtension extends ChunkManager {
         }
         currentDimension = dimensionName;
         lastPlayerChunkPos.set(-999, 0, -999);
+        chunkExecutor = Executors.newFixedThreadPool(4);
     }
 
     public String getCurrentDimension() {

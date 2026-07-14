@@ -131,6 +131,7 @@ public class ButtonRenderer {
     public void updateScreenSize() {
         updateCurrentScreenSize();
         updateScaledDimensions();
+        syncRendererSizes();
     }
 
     /** Update screen size with given dimensions */
@@ -138,6 +139,13 @@ public class ButtonRenderer {
         this.currentScreenWidth = newScreenWidth;
         this.currentScreenHeight = newScreenHeight;
         updateScaledDimensions();
+        syncRendererSizes();
+    }
+
+    private void syncRendererSizes() {
+        if (normalRenderer != null) normalRenderer.setScreenSize(currentScreenWidth, currentScreenHeight);
+        if (hoverRenderer != null) hoverRenderer.setScreenSize(currentScreenWidth, currentScreenHeight);
+        if (pressedRenderer != null) pressedRenderer.setScreenSize(currentScreenWidth, currentScreenHeight);
     }
 
     /** Update button position and size */

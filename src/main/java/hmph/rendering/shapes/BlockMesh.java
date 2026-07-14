@@ -37,7 +37,7 @@ public class BlockMesh {
             int nx = x + (int) dir.x();
             int ny = y + (int) dir.y();
             int nz = z + (int) dir.z();
-            boolean shouldRender = isAirOrOutOfBounds(nx, ny, nz, blocks);
+            boolean shouldRender = isFaceVisible(nx, ny, nz, blockName, blocks, registry);
             if (!shouldRender) continue;
 
             Vector3f[] faceVertices = dir.getVertices();
@@ -46,7 +46,7 @@ public class BlockMesh {
 
             // Get texture name for this face
             String textureName = registry.getTexture(blockName, dir);
-            float textureId = getTextureIndex(textureName); // You'll need to implement this
+            float textureId = registry.getTextureLayer(textureName);
 
             for (int i = 0; i < 4; i++) {
                 Vector3f v = faceVertices[i];
@@ -67,11 +67,11 @@ public class BlockMesh {
 
             int baseIndex = startVertexIndex + facesAdded * 4;
             indices.add(baseIndex);
+            indices.add(baseIndex + 2);
             indices.add(baseIndex + 1);
-            indices.add(baseIndex + 2);
             indices.add(baseIndex);
-            indices.add(baseIndex + 2);
             indices.add(baseIndex + 3);
+            indices.add(baseIndex + 2);
             facesAdded++;
         }
 
@@ -106,32 +106,16 @@ public class BlockMesh {
         }
     }
 
-    private static float getTextureIndex(String textureName) {
-        // This is a placeholder - you'll need to implement a texture indexing system
-        // For now, return 0 (you could map texture names to indices)
-        if (textureName == null) return 0f;
-
-        // Simple hash-based mapping (not ideal, but works for testing)
-        switch (textureName) {
-            case "stone_generic": return 0f;
-            case "dirt": return 1f;
-            case "grass_top": return 2f;
-            case "grass_side": return 3f;
-            case "granite": return 4f;
-            case "marble": return 5f;
-            case "sandstone": return 6f;
-            case "basalt": return 7f;
-            case "oak_leaves": return 8f;
-            case "pine_leaves": return 9f;
-            default: return 0f;
-        }
-    }
-
-    private static boolean isAirOrOutOfBounds(int x, int y, int z, String[][][] blocks) {
+    private static boolean isFaceVisible(int x, int y, int z, String blockName,
+                                         String[][][] blocks, BlockRegistry registry) {
         if (x < 0 || y < 0 || z < 0 ||
                 x >= blocks.length || y >= blocks[0].length || z >= blocks[0][0].length) {
             return true;
         }
-        return blocks[x][y][z] == null;
+        String neighbor = blocks[x][y][z];
+        if (neighbor == null) return true;
+
+        BlockRegistry.BlockProperties properties = registry.getProperties(neighbor);
+        return properties != null && properties.isTransparent && !neighbor.equals(blockName);
     }
 }

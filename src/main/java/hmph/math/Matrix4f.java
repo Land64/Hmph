@@ -124,13 +124,14 @@ public class Matrix4f {
     public Matrix4f multiply(Matrix4f other) {
         float[] result = new float[16];
 
-        for (int row = 0; row < 4; row++) {
-            for (int col = 0; col < 4; col++) {
-                result[row * 4 + col] =
-                        m[row * 4 + 0] * other.m[0 * 4 + col] +
-                                m[row * 4 + 1] * other.m[1 * 4 + col] +
-                                m[row * 4 + 2] * other.m[2 * 4 + col] +
-                                m[row * 4 + 3] * other.m[3 * 4 + col];
+        // Matrices are stored column-major because they are sent directly to OpenGL.
+        for (int column = 0; column < 4; column++) {
+            for (int row = 0; row < 4; row++) {
+                result[column * 4 + row] =
+                        m[0 * 4 + row] * other.m[column * 4 + 0] +
+                        m[1 * 4 + row] * other.m[column * 4 + 1] +
+                        m[2 * 4 + row] * other.m[column * 4 + 2] +
+                        m[3 * 4 + row] * other.m[column * 4 + 3];
             }
         }
 

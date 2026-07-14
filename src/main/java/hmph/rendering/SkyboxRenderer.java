@@ -211,6 +211,7 @@ public class SkyboxRenderer {
         if (vao != 0) { glDeleteVertexArrays(vao); vao = 0; }
         if (vbo != 0) { glDeleteBuffers(vbo); vbo = 0; }
         if (ebo != 0) { glDeleteBuffers(ebo); ebo = 0; }
-        if (skyboxShader != null) { skyboxShader.cleanup(); skyboxShader = null; }
+        // ShaderProgram ownership belongs to ShaderManager.
+        skyboxShader = null;
     }
 }

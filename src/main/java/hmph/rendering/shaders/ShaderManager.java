@@ -21,7 +21,7 @@ public class ShaderManager {
             shader.createUniform("model");
             shader.createUniform("view");
             shader.createUniform("projection");
-            shader.createUniform("texture1");
+            shader.createUniform("textureArray");
             shader.createUniform("color");
             shader.createUniform("lightDirection");
             shader.createUniform("lightColor");
@@ -96,6 +96,7 @@ public class ShaderManager {
             "layout (location = 0) in vec3 aPos;\n" +
             "layout (location = 1) in vec2 aTexCoord;\n" +
             "layout (location = 2) in vec3 aNormal;\n" +
+            "layout (location = 3) in float aTextureLayer;\n" +
             "\n" +
             "uniform mat4 model;\n" +
             "uniform mat4 view;\n" +
@@ -104,12 +105,14 @@ public class ShaderManager {
             "out vec2 TexCoord;\n" +
             "out vec3 worldPos;\n" +
             "out vec3 Normal;\n" +
+            "flat out int TextureLayer;\n" +
             "\n" +
             "void main() {\n" +
             "    worldPos = vec3(model * vec4(aPos, 1.0));\n" +
             "    gl_Position = projection * view * vec4(worldPos, 1.0);\n" +
             "    TexCoord = aTexCoord;\n" +
             "    Normal = mat3(transpose(inverse(model))) * aNormal;\n" +
+            "    TextureLayer = int(aTextureLayer + 0.5);\n" +
             "}\n";
 
     private static final String FRAGMENT_3D_SHADER =
@@ -117,9 +120,10 @@ public class ShaderManager {
             "in vec2 TexCoord;\n" +
             "in vec3 worldPos;\n" +
             "in vec3 Normal;\n" +
+            "flat in int TextureLayer;\n" +
             "out vec4 FragColor;\n" +
             "\n" +
-            "uniform sampler2D texture1;\n" +
+            "uniform sampler2DArray textureArray;\n" +
             "uniform vec3 color;\n" +
             "uniform vec3 lightDirection;\n" +
             "uniform vec3 lightColor;\n" +
@@ -127,7 +131,7 @@ public class ShaderManager {
             "uniform vec3 ambientColor;\n" +
             "\n" +
             "void main() {\n" +
-            "    vec4 texColor = texture(texture1, TexCoord);\n" +
+            "    vec4 texColor = texture(textureArray, vec3(TexCoord, float(TextureLayer)));\n" +
             "    if (texColor.a < 0.1) {\n" +
             "        discard;\n" +
             "    }\n" +
@@ -189,9 +193,9 @@ public class ShaderManager {
             "in vec2 TexCoords;\n" +
             "out vec4 FragColor;\n" +
             "uniform sampler2D textTexture;\n" +
-            "uniform vec3 textColor;\n" +
+            "uniform vec4 textColor;\n" +
             "void main() {\n" +
             "    float alpha = texture(textTexture, TexCoords).r;\n" +
-            "    FragColor = vec4(textColor, alpha);\n" +
+            "    FragColor = vec4(textColor.rgb, textColor.a * alpha);\n" +
             "}\n";
 }

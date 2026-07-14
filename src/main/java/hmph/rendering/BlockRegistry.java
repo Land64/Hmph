@@ -7,6 +7,7 @@ import java.util.*;
 public class BlockRegistry {
     private final Map<String, BlockData> blocks = new HashMap<>();
     private final Map<Integer, String> idToName = new HashMap<>();
+    private Map<String, Integer> textureLayers = Collections.emptyMap();
     private int nextID = 1;
 
     public static class BlockData {
@@ -163,6 +164,14 @@ public class BlockRegistry {
         BlockData data = blocks.get(name);
         if (data == null) return null;
         return data.faceTextures.get(dir);
+    }
+
+    public void setTextureLayers(Map<String, Integer> textureLayers) {
+        this.textureLayers = new HashMap<>(textureLayers);
+    }
+
+    public int getTextureLayer(String textureName) {
+        return textureLayers.getOrDefault(textureName, 0);
     }
 
     public String getType(String name) {

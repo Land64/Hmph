@@ -11,7 +11,7 @@ public class Player {
     public static final float GRAVITY = -9.8f;
     public static final float JUMP_STRENGTH = 5.0f;
     public static final float MOVE_SPEED = 4.317f;
-    public static final float SPRINT_SPEED = 5.612f * 25f;
+    public static final float SPRINT_SPEED = 7.5f;
 
     private Vector3f position;
     private Vector3f velocity;
@@ -193,6 +193,8 @@ public class Player {
                 newPosition.y = blockY + 1.0f;
             } else {
                 velocity.y = 0;
+                int ceilingY = (int) Math.floor(newPosition.y + PLAYER_HEIGHT);
+                newPosition.y = ceilingY - PLAYER_HEIGHT - 0.001f;
             }
         } else {
             onGround = false;
